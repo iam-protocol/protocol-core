@@ -5,14 +5,14 @@ use crate::errors::VerifierError;
 use crate::verifying_key::VERIFYINGKEY;
 
 /// Number of public inputs for the IAM Hamming circuit.
-/// commitment_new, commitment_prev, threshold
-const NR_PUBLIC_INPUTS: usize = 3;
+/// commitment_new, commitment_prev, threshold, min_distance
+const NR_PUBLIC_INPUTS: usize = 4;
 
 /// Verify a Groth16 proof against the IAM Hamming circuit verification key.
 ///
 /// # Arguments
 /// * `proof_bytes` - 256 bytes: proof_a (64, negated) + proof_b (128) + proof_c (64)
-/// * `public_inputs` - 3 x 32-byte big-endian field elements
+/// * `public_inputs` - 4 x 32-byte big-endian field elements
 pub fn verify_proof(
     proof_bytes: &[u8],
     public_inputs: &[[u8; 32]],
@@ -38,6 +38,7 @@ pub fn verify_proof(
         public_inputs[0],
         public_inputs[1],
         public_inputs[2],
+        public_inputs[3],
     ];
 
     let mut verifier = Groth16Verifier::new(
