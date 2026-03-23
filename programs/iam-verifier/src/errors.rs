@@ -12,4 +12,6 @@ pub enum VerifierError {
     ChallengeAlreadyUsed,
     #[msg("Invalid public inputs")]
     InvalidPublicInputs,
+    #[msg("Challenge must be used before closing")]
+    ChallengeNotUsed,
 }
