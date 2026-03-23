@@ -8,4 +8,6 @@ pub enum IamAnchorError {
     Unauthorized,
     #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
+    #[msg("Invalid protocol config account")]
+    InvalidProtocolConfig,
 }

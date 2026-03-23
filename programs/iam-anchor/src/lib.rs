@@ -14,6 +14,28 @@ use state::IdentityState;
 
 declare_id!("GZYwTp2ozeuRA5Gof9vs4ya961aANcJBdUzB7LN6q4b2");
 
+/// iam-registry program ID for cross-program ProtocolConfig PDA validation.
+/// Decoded from: 6VBs3zr9KrfFPGd6j7aGBPQWwZa5tajVfA7HN6MMV9VW
+const REGISTRY_PROGRAM_ID: Pubkey = Pubkey::new_from_array([
+    81, 130, 250, 230, 30, 253, 246, 69, 82, 96, 7, 173, 78, 160, 131, 188, 70, 106, 173, 59,
+    102, 163, 198, 189, 82, 37, 225, 38, 52, 233, 157, 117,
+]);
+
+/// Integer square root via Newton's method (deterministic, no floating point).
+/// Mirrors iam_registry::isqrt — keep implementations in sync.
+fn isqrt(n: u64) -> u64 {
+    if n == 0 {
+        return 0;
+    }
+    let mut x = n;
+    let mut y = x.div_ceil(2);
+    while y < x {
+        x = y;
+        y = (x + n / x) / 2;
+    }
+    x
+}
+
 /// Mint account space for Token-2022 with NonTransferable extension.
 /// Base mint = 82 bytes, account type = 1 byte, extension type (2) + length (2) = 4 bytes,
 /// NonTransferable data = 0 bytes. Plus multisig padding from Token-2022.
@@ -122,11 +144,8 @@ pub mod iam_anchor {
     }
 
     /// Update the identity state after a successful proof verification.
-    pub fn update_anchor(
-        ctx: Context<UpdateAnchor>,
-        new_commitment: [u8; 32],
-        new_trust_score: u16,
-    ) -> Result<()> {
+    /// Trust score is computed automatically from verification history and protocol config.
+    pub fn update_anchor(ctx: Context<UpdateAnchor>, new_commitment: [u8; 32]) -> Result<()> {
         require!(
             new_commitment != [0u8; 32],
             IamAnchorError::InvalidCommitment
@@ -140,7 +159,6 @@ pub mod iam_anchor {
             .ok_or(IamAnchorError::ArithmeticOverflow)?;
         let now = Clock::get()?.unix_timestamp;
         identity.last_verification_timestamp = now;
-        identity.trust_score = new_trust_score;
 
         // Shift recent_timestamps array: drop oldest, prepend newest
         for i in (1..10).rev() {
@@ -148,10 +166,68 @@ pub mod iam_anchor {
         }
         identity.recent_timestamps[0] = now;
 
+        // Read protocol config (cross-program, iam-registry)
+        // Layout: 8 disc + 32 admin + 8 min_stake + 8 challenge_expiry = offset 56
+        let config_data = ctx.accounts.protocol_config.try_borrow_data()?;
+        require!(
+            config_data.len() >= 61,
+            IamAnchorError::InvalidProtocolConfig
+        );
+        let max_trust_score = u16::from_le_bytes([config_data[56], config_data[57]]);
+        let base_trust_increment = u16::from_le_bytes([config_data[58], config_data[59]]);
+
+        // Recency-weighted verification score (same algorithm as iam_registry)
+        let mut recency_score: u64 = 0;
+        for ts in identity.recent_timestamps.iter() {
+            if *ts == 0 {
+                continue;
+            }
+            let days_since = ((now - ts) / 86400).max(0) as u64;
+            recency_score += 3000 / (30 + days_since);
+        }
+        let base_score = (recency_score / 100) * u64::from(base_trust_increment);
+
+        // Regularity bonus from gap consistency
+        let mut gaps = [0i64; 9];
+        let mut gaps_len = 0usize;
+        for i in 0..9 {
+            let a = identity.recent_timestamps[i];
+            let b = identity.recent_timestamps[i + 1];
+            if a > 0 && b > 0 {
+                gaps[gaps_len] = (a - b) / 86400;
+                gaps_len += 1;
+            }
+        }
+        let regularity_bonus: u64 = if gaps_len >= 2 {
+            let gap_slice = &gaps[..gaps_len];
+            let mean_gap: i64 = gap_slice.iter().sum::<i64>() / gaps_len as i64;
+            let variance: u64 = gap_slice
+                .iter()
+                .map(|g| ((g - mean_gap) * (g - mean_gap)) as u64)
+                .sum::<u64>()
+                / gaps_len as u64;
+            let stddev = isqrt(variance);
+            20u64.saturating_sub(stddev.min(20))
+        } else {
+            0
+        };
+
+        // Age bonus with diminishing returns
+        let age_seconds = now
+            .checked_sub(identity.creation_timestamp)
+            .ok_or(IamAnchorError::ArithmeticOverflow)?;
+        let age_days: u64 = (age_seconds / 86400).try_into().unwrap_or(0);
+        let age_bonus = isqrt(age_days.min(365)) * 2;
+
+        let total = base_score
+            .saturating_add(regularity_bonus)
+            .saturating_add(age_bonus);
+        identity.trust_score = total.min(u64::from(max_trust_score)) as u16;
+
         emit!(AnchorUpdated {
             owner: identity.owner,
             verification_count: identity.verification_count,
-            trust_score: new_trust_score,
+            trust_score: identity.trust_score,
             commitment: new_commitment,
         });
 
@@ -208,8 +284,18 @@ pub struct UpdateAnchor<'info> {
         mut,
         seeds = [b"identity", identity_state.owner.as_ref()],
         bump = identity_state.bump,
+        constraint = identity_state.owner == authority.key() @ IamAnchorError::Unauthorized,
     )]
     pub identity_state: Account<'info, IdentityState>,
+
+    /// CHECK: Cross-program read of iam-registry ProtocolConfig PDA.
+    /// Validated by seeds + owner via seeds::program.
+    #[account(
+        seeds = [b"protocol_config"],
+        bump,
+        seeds::program = REGISTRY_PROGRAM_ID,
+    )]
+    pub protocol_config: UncheckedAccount<'info>,
 }
 
 // --- Events ---
