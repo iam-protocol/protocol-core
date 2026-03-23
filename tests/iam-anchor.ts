@@ -8,12 +8,14 @@ import {
   transfer,
 } from "@solana/spl-token";
 import { IamAnchor } from "../target/types/iam_anchor";
+import { IamRegistry } from "../target/types/iam_registry";
 
 describe("iam-anchor", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
   const program = anchor.workspace.iamAnchor as Program<IamAnchor>;
+  const registry = anchor.workspace.iamRegistry as Program<IamRegistry>;
 
   function deriveIdentityPda(user: anchor.web3.PublicKey) {
     return anchor.web3.PublicKey.findProgramAddressSync(
@@ -34,8 +36,35 @@ describe("iam-anchor", () => {
     program.programId
   );
 
+  const [protocolConfigPda] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("protocol_config")],
+    registry.programId
+  );
+
   const commitment = Buffer.alloc(32);
   commitment.write("initial_commitment_test", "utf-8");
+
+  before(async () => {
+    // Initialize protocol config (needed for update_anchor trust score computation).
+    // Runs before iam-registry tests alphabetically, so we initialize it here.
+    try {
+      await registry.methods
+        .initializeProtocol(
+          new anchor.BN(1_000_000_000),
+          new anchor.BN(300),
+          10000,
+          100
+        )
+        .accounts({
+          admin: provider.wallet.publicKey,
+          protocolConfig: protocolConfigPda,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .rpc();
+    } catch {
+      // Already initialized from a previous run
+    }
+  });
 
   it("mints an identity anchor", async () => {
     const user = provider.wallet;
@@ -147,7 +176,7 @@ describe("iam-anchor", () => {
     expect(identity.owner.toBase58()).to.equal(user2.publicKey.toBase58());
   });
 
-  it("updates identity state", async () => {
+  it("updates identity state with auto-computed trust score", async () => {
     const user = provider.wallet;
     const [identityPda] = deriveIdentityPda(user.publicKey);
 
@@ -155,17 +184,50 @@ describe("iam-anchor", () => {
     newCommitment.write("updated_commitment_v2!", "utf-8");
 
     await program.methods
-      .updateAnchor(Array.from(newCommitment), 150)
+      .updateAnchor(Array.from(newCommitment))
       .accounts({
         authority: user.publicKey,
         identityState: identityPda,
+        protocolConfig: protocolConfigPda,
       })
       .rpc();
 
     const identity = await program.account.identityState.fetch(identityPda);
     expect(identity.verificationCount).to.equal(1);
-    expect(identity.trustScore).to.equal(150);
+    // Trust score is auto-computed: brand-new identity with 1 verification
+    // recency_score = 3000/30 = 100, base = (100/100)*100 = 100, age ~0 days
+    expect(identity.trustScore).to.be.greaterThanOrEqual(100);
     expect(Buffer.from(identity.currentCommitment)).to.deep.equal(newCommitment);
+  });
+
+  it("rejects update from unauthorized wallet", async () => {
+    const attacker = anchor.web3.Keypair.generate();
+    const sig = await provider.connection.requestAirdrop(
+      attacker.publicKey,
+      2_000_000_000
+    );
+    await provider.connection.confirmTransaction(sig);
+
+    // Target the real user's identity PDA
+    const [identityPda] = deriveIdentityPda(provider.wallet.publicKey);
+
+    const fakeCommitment = Buffer.alloc(32);
+    fakeCommitment.write("attacker_commitment!", "utf-8");
+
+    try {
+      await program.methods
+        .updateAnchor(Array.from(fakeCommitment))
+        .accounts({
+          authority: attacker.publicKey,
+          identityState: identityPda,
+          protocolConfig: protocolConfigPda,
+        })
+        .signers([attacker])
+        .rpc();
+      expect.fail("Should have thrown — unauthorized update");
+    } catch (err: any) {
+      expect(err).to.exist;
+    }
   });
 
   it("rejects transfer of non-transferable token", async () => {

@@ -116,7 +116,7 @@ describe("iam-verifier", () => {
     expect(challenge.used).to.be.true;
   });
 
-  it("rejects tampered proof", async () => {
+  it("rejects tampered proof (transaction reverts)", async () => {
     const nonce = generateNonce();
     const [challengePda] = deriveChallengePda(provider.wallet.publicKey, nonce);
     const [verificationPda] = deriveVerificationPda(
@@ -138,20 +138,24 @@ describe("iam-verifier", () => {
     tamperedProof[10] ^= 0xff;
     tamperedProof[50] ^= 0xff;
 
-    await program.methods
-      .verifyProof(tamperedProof, fixture.public_inputs, nonce)
-      .accounts({
-        verifier: provider.wallet.publicKey,
-        challenge: challengePda,
-        verificationResult: verificationPda,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .rpc();
+    try {
+      await program.methods
+        .verifyProof(tamperedProof, fixture.public_inputs, nonce)
+        .accounts({
+          verifier: provider.wallet.publicKey,
+          challenge: challengePda,
+          verificationResult: verificationPda,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .rpc();
+      expect.fail("Should have thrown — invalid proof must revert");
+    } catch (err: any) {
+      expect(err).to.exist;
+    }
 
-    const result = await program.account.verificationResult.fetch(
-      verificationPda
-    );
-    expect(result.isValid).to.be.false;
+    // Challenge nonce must NOT be consumed (transaction reverted atomically)
+    const challenge = await program.account.challenge.fetch(challengePda);
+    expect(challenge.used).to.be.false;
   });
 
   it("rejects already-used challenge", async () => {

@@ -167,12 +167,13 @@ describe("e2e: full IAM verification flow", () => {
     const result = await verifier.account.verificationResult.fetch(verificationPda);
     expect(result.isValid).to.be.true;
 
-    // 6. Update anchor with new commitment and trust score
+    // 6. Update anchor with new commitment (trust score auto-computed)
     await iamAnchor.methods
-      .updateAnchor(Array.from(newCommitment), 100)
+      .updateAnchor(Array.from(newCommitment))
       .accounts({
         authority: e2eUser.publicKey,
         identityState: identityPda,
+        protocolConfig: protocolConfigPda,
       })
       .signers([e2eUser])
       .rpc();
@@ -180,7 +181,8 @@ describe("e2e: full IAM verification flow", () => {
     // 7. Verify final state
     identity = await iamAnchor.account.identityState.fetch(identityPda);
     expect(identity.verificationCount).to.equal(1);
-    expect(identity.trustScore).to.equal(100);
+    // Trust score auto-computed: 1 verification at day 0 → recency 100, base 100, age ~0
+    expect(identity.trustScore).to.be.greaterThanOrEqual(100);
     expect(Buffer.from(identity.currentCommitment)).to.deep.equal(newCommitment);
     expect(identity.lastVerificationTimestamp.toNumber()).to.be.greaterThan(0);
   });
