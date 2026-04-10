@@ -200,7 +200,7 @@ pub mod iam_anchor {
             let days_since = ((now - unique_ts[i]) / 86400).max(0) as u64;
             recency_score += 3000 / (30 + days_since);
         }
-        let base_score = (recency_score / 100) * u64::from(base_trust_increment);
+        let base_score = (recency_score * u64::from(base_trust_increment)) / 100;
 
         // Regularity bonus from gap consistency (unique days only)
         let mut gaps = [0i64; 9];
