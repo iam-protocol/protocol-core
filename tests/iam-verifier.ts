@@ -4,6 +4,7 @@ import { expect } from "chai";
 import * as fs from "fs";
 import * as path from "path";
 import type { IamVerifier } from "../target/types/iam_verifier";
+import { deriveChallengePda, deriveVerificationPda, generateNonce } from "./utils";
 
 // Load pre-generated Groth16 proof fixture
 const fixture = JSON.parse(
@@ -18,42 +19,25 @@ describe("iam-verifier", () => {
   anchor.setProvider(provider);
 
   const program = anchor.workspace.iamVerifier as Program<IamVerifier>;
+  const iamVerifierProgId = program.programId;
 
-  function generateNonce(): number[] {
-    return Array.from(anchor.web3.Keypair.generate().publicKey.toBytes());
-  }
-
-  function deriveChallengePda(
-    challenger: anchor.web3.PublicKey,
-    nonce: number[]
-  ) {
-    return anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("challenge"),
-        challenger.toBuffer(),
-        Buffer.from(nonce),
-      ],
-      program.programId
-    );
-  }
-
-  function deriveVerificationPda(
-    verifier: anchor.web3.PublicKey,
-    nonce: number[]
-  ) {
-    return anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("verification"),
-        verifier.toBuffer(),
-        Buffer.from(nonce),
-      ],
-      program.programId
-    );
-  }
+  // function deriveVerificationPda(
+  //   verifier: anchor.web3.PublicKey,
+  //   nonce: number[]
+  // ) {
+  //   return anchor.web3.PublicKey.findProgramAddressSync(
+  //     [
+  //       Buffer.from("verification"),
+  //       verifier.toBuffer(),
+  //       Buffer.from(nonce),
+  //     ],
+  //     program.programId
+  //   );
+  // }
 
   it("creates a challenge", async () => {
     const nonce = generateNonce();
-    const [challengePda] = deriveChallengePda(provider.wallet.publicKey, nonce);
+    const [challengePda] = deriveChallengePda(provider.wallet.publicKey, nonce, iamVerifierProgId);
 
     await program.methods
       .createChallenge(nonce)
@@ -76,10 +60,10 @@ describe("iam-verifier", () => {
 
   it("verifies a valid Groth16 proof", async () => {
     const nonce = generateNonce();
-    const [challengePda] = deriveChallengePda(provider.wallet.publicKey, nonce);
+    const [challengePda] = deriveChallengePda(provider.wallet.publicKey, nonce, iamVerifierProgId);
     const [verificationPda] = deriveVerificationPda(
       provider.wallet.publicKey,
-      nonce
+      nonce, iamVerifierProgId
     );
 
     await program.methods
@@ -118,10 +102,10 @@ describe("iam-verifier", () => {
 
   it("rejects tampered proof (transaction reverts)", async () => {
     const nonce = generateNonce();
-    const [challengePda] = deriveChallengePda(provider.wallet.publicKey, nonce);
+    const [challengePda] = deriveChallengePda(provider.wallet.publicKey, nonce, iamVerifierProgId);
     const [verificationPda] = deriveVerificationPda(
       provider.wallet.publicKey,
-      nonce
+      nonce, iamVerifierProgId
     );
 
     await program.methods
@@ -160,10 +144,10 @@ describe("iam-verifier", () => {
 
   it("rejects already-used challenge", async () => {
     const nonce = generateNonce();
-    const [challengePda] = deriveChallengePda(provider.wallet.publicKey, nonce);
+    const [challengePda] = deriveChallengePda(provider.wallet.publicKey, nonce, iamVerifierProgId);
     const [verificationPda] = deriveVerificationPda(
       provider.wallet.publicKey,
-      nonce
+      nonce, iamVerifierProgId
     );
 
     await program.methods
