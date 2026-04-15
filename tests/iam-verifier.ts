@@ -21,20 +21,6 @@ describe("iam-verifier", () => {
   const program = anchor.workspace.iamVerifier as Program<IamVerifier>;
   const iamVerifierProgId = program.programId;
 
-  // function deriveVerificationPda(
-  //   verifier: anchor.web3.PublicKey,
-  //   nonce: number[]
-  // ) {
-  //   return anchor.web3.PublicKey.findProgramAddressSync(
-  //     [
-  //       Buffer.from("verification"),
-  //       verifier.toBuffer(),
-  //       Buffer.from(nonce),
-  //     ],
-  //     program.programId
-  //   );
-  // }
-
   it("creates a challenge", async () => {
     const nonce = generateNonce();
     const [challengePda] = deriveChallengePda(provider.wallet.publicKey, nonce, iamVerifierProgId);
