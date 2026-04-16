@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "test": "anchor test"
+    "test": "anchor test",
+    "test-litesvm": "node ./tests-litesvm-ts/trustscore.ts"
   },
   "overrides": {
     "serialize-javascript": ">=7.0.3",
@@ -16,6 +17,7 @@
     "@types/chai": "^4.3.0",
     "@types/mocha": "^10.0.10",
     "chai": "^4.5.0",
+    "litesvm": "^0.7.0",
     "mocha": "^10.8.2",
     "ts-mocha": "^10.0.0",
     "typescript": "^6.0.2"
