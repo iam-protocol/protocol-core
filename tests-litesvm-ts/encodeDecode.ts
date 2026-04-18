@@ -23,8 +23,8 @@ import {
   getU64Encoder,
   lamports,
 } from "@solana/kit";
-import { PublicKey } from "@solana/web3.js";
-import { iamAnchorAddr, registryAddr } from "./litesvm-utils.ts";
+import { Keypair, PublicKey } from "@solana/web3.js";
+import { iamAnchorAddr, registryAddr, verifierAddr } from "./litesvm-utils.ts";
 
 //-----------==
 export const [treasuryPda] = PublicKey.findProgramAddressSync(
@@ -32,6 +32,21 @@ export const [treasuryPda] = PublicKey.findProgramAddressSync(
   registryAddr,
 );
 console.log("treasuryPda:", treasuryPda.toBase58());
+//-----------== iamVerifier
+//export const loadProofFixture = () => {}
+
+export const generateNonce = (): number[] =>
+  Array.from(Keypair.generate().publicKey.toBytes());
+export const deriveChallengePda = (challenger: PublicKey, nonce: number[]) =>
+  PublicKey.findProgramAddressSync(
+    [Buffer.from("challenge"), challenger.toBuffer(), Buffer.from(nonce)],
+    verifierAddr,
+  );
+export const deriveVerificationPda = (verifier: PublicKey, nonce: number[]) =>
+  PublicKey.findProgramAddressSync(
+    [Buffer.from("verification"), verifier.toBuffer(), Buffer.from(nonce)],
+    verifierAddr,
+  );
 //-----------== iamAnchor
 export const deriveMintPda = (user: PublicKey) =>
   PublicKey.findProgramAddressSync(
@@ -102,7 +117,7 @@ export const decodeIdentityStateWeb3js = (
 ) => {
   if (!bytes) throw new Error("bytes invalid");
   const decoded = decodeIdentityState(bytes, true);
-  const decodedV1: IdentityStateAcctgAcctWeb3js = {
+  const decodedV1: IdentityStateAcctWeb3js = {
     owner: new PublicKey(decoded.owner.toString()),
     creation_timestamp: decoded.creation_timestamp,
     last_verification_timestamp: decoded.last_verification_timestamp,
@@ -115,7 +130,7 @@ export const decodeIdentityStateWeb3js = (
   };
   return decodedV1;
 };
-export type IdentityStateAcctgAcctWeb3js = {
+export type IdentityStateAcctWeb3js = {
   owner: PublicKey;
   creation_timestamp: bigint;
   last_verification_timestamp: bigint;
@@ -197,7 +212,7 @@ export type ProtocolConfigAcctWeb3js = {
   verification_fee: bigint;
 };
 
-//-------------==
+//-------------== Encode numbers
 export const numToBytes = (input: bigint | number, bit = 64) => {
   let amtBigint = BigInt(0);
   if (typeof input === "number") {

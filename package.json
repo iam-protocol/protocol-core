@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "test": "anchor test",
-    "litesvm-transfer-sol": "node ./tests-litesvm-ts/trustscore.ts",
+    "litesvm-initial": "node ./tests-litesvm-ts/trustscore.ts",
     "litesvm-trustscore": "node ./tests-litesvm-ts/clock-tests.ts"
   },
   "overrides": {

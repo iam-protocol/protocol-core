@@ -9,8 +9,11 @@ import { expect } from "chai";
 import {
   decodeIdentityStateWeb3js,
   decodeProtocolConfigWeb3js,
+  deriveChallengePda,
   deriveIdentityPda,
   deriveMintPda,
+  deriveVerificationPda,
+  generateNonce,
   mintAuthorityPda,
   protocolConfigBump,
   protocolConfigPda,
@@ -21,6 +24,7 @@ import {
   acctIsNull,
   adminKp,
   ataBalCk,
+  createChallenge,
   day,
   iamAnchorAddr,
   initializeProtocol,
@@ -41,6 +45,7 @@ commitment.write("initial_commitment_test", "utf-8");
 
 let signerKp: Keypair;
 let signer: PublicKey;
+let trustscorePrev: number;
 warpTime(0);
 
 test("registry.initializeProtocol()", async () => {
@@ -128,19 +133,20 @@ test("iamAnchor.updateAnchor()", async () => {
   const decoded = decodeIdentityStateWeb3js(rawAccountData);
   expect(decoded.verification_count).to.equal(1);
   expect(decoded.trust_score).to.equal(100);
+  trustscorePrev = decoded.trust_score;
 });
 
-test("iamAnchor.updateAnchor() 2nd time", async () => {
+test("iamAnchor.updateAnchor() 2nd time after 1 day", async () => {
   //warp 1 day + create_challenge + verify_proof + update_anchor: trust score should be ~196
   signerKp = adminKp;
   signer = signerKp.publicKey;
-  const [_identityPda] = deriveIdentityPda(signer);
+  const [identityPda] = deriveIdentityPda(signer);
   const newCommitment = Buffer.alloc(32);
-  newCommitment.write("updated_commitment_v2!", "utf-8");
+  newCommitment.write("updated_commitment_v3!", "utf-8");
 
   warpTime(1 * day);
 
-  /*updateAnchor(
+  updateAnchor(
     signerKp,
     newCommitment,
     identityPda,
@@ -149,7 +155,19 @@ test("iamAnchor.updateAnchor() 2nd time", async () => {
   );
   const rawAccountData = readAcct(identityPda);
   const decoded = decodeIdentityStateWeb3js(rawAccountData);
-  expect(decoded.verification_count).to.equal(1);
-  expect(decoded.trust_score).to.equal(196);
-  */
+  expect(decoded.verification_count).to.equal(2);
+  expect(decoded.trust_score).greaterThan(trustscorePrev); //198
+});
+
+test("iamVerifier.createChallenge()", async () => {
+  signerKp = adminKp;
+  signer = signerKp.publicKey;
+
+  const nonce = generateNonce();
+  const [challengePda] = deriveChallengePda(signer, nonce);
+  const [_verificationPda] = deriveVerificationPda(signer, nonce);
+
+  createChallenge(signerKp, nonce, challengePda);
+
+  //TODO: verify_proof + update_anchor
 });

@@ -131,7 +131,7 @@ export const initializeProtocol = (
     programId: progAddr,
     data: Buffer.from([...disc, ...argData]),
   });
-  sendTxns(svm, blockhash, [ix], [signer], progAddr);
+  sendTxns(blockhash, [ix], [signer], progAddr);
 };
 //-------------== iamAnchor Program Methods
 export const mintAnchor = (
@@ -167,7 +167,7 @@ export const mintAnchor = (
     programId: progAddr,
     data: Buffer.from([...disc, ...argData]),
   });
-  sendTxns(svm, blockhash, [ix], [signer], progAddr);
+  sendTxns(blockhash, [ix], [signer], progAddr);
 };
 
 export const updateAnchor = (
@@ -193,8 +193,32 @@ export const updateAnchor = (
     programId: progAddr,
     data: Buffer.from([...disc, ...argData]),
   });
-  sendTxns(svm, blockhash, [ix], [signer], progAddr);
+  sendTxns(blockhash, [ix], [signer], progAddr);
 };
+
+export const createChallenge = (
+  signer: Keypair, //challenger
+  nonce: number[],
+  challenge: PublicKey,
+  //systemProgram: PublicKey,
+) => {
+  const disc = [170, 244, 47, 1, 1, 15, 173, 239]; //copied from Anchor IDL
+  const progAddr = verifierAddr;
+  const argData = [...nonce];
+  const blockhash = svm.latestBlockhash();
+  const ix = new TransactionInstruction({
+    keys: [
+      { pubkey: signer.publicKey, isSigner: true, isWritable: true },
+      { pubkey: challenge, isSigner: false, isWritable: true },
+      { pubkey: SYSTEM_PROGRAM, isSigner: false, isWritable: false },
+    ],
+    programId: progAddr,
+    data: Buffer.from([...disc, ...argData]),
+  });
+  sendTxns(blockhash, [ix], [signer], progAddr);
+};
+
+//-------------== Time Manipulation
 export const getTime = () => {
   const time = Math.floor(Date.now() / 1000);
   console.log("JS time:", time);
@@ -240,7 +264,6 @@ console.log("program deployment is successful");
 
 //-------------== Send Transactions
 export const sendTxns = (
-  svm: LiteSVM,
   blockhash: string,
   ixs: TransactionInstruction[],
   signerKps: Keypair[],
