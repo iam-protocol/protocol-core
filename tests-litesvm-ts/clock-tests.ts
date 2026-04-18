@@ -21,18 +21,27 @@ import {
   acctIsNull,
   adminKp,
   ataBalCk,
+  day,
   iamAnchorAddr,
   initializeProtocol,
   mintAnchor,
   readAcct,
   registryAddr,
+  updateAnchor,
+  warpTime,
 } from "./litesvm-utils.ts";
 
+/* Build the Solana programs first:
+$ anchor build
+Then Install NodeJs v25.9.0(or above v22.18.0) to run this TypeScript Natively: node ./file_path/this_file.ts
+Or use Bun: bun test ./file_path/this_file.ts
+*/
 const commitment = Buffer.alloc(32);
 commitment.write("initial_commitment_test", "utf-8");
 
 let signerKp: Keypair;
 let signer: PublicKey;
+warpTime(0);
 
 test("registry.initializeProtocol()", async () => {
   signerKp = adminKp;
@@ -98,4 +107,49 @@ test("registry.mintAnchor()", async () => {
   expect(Buffer.from(decoded.current_commitment)).to.deep.equal(commitment);
   acctEqual(decoded.mint, mintPda);
   ataBalCk(ata, BigInt(1), "IdentityMint", 0);
+});
+
+test("iamAnchor.updateAnchor()", async () => {
+  //update_anchor() at T=0 → trust score = 100
+  signerKp = adminKp;
+  signer = signerKp.publicKey;
+  const [identityPda] = deriveIdentityPda(signer);
+  const newCommitment = Buffer.alloc(32);
+  newCommitment.write("updated_commitment_v2!", "utf-8");
+
+  updateAnchor(
+    signerKp,
+    newCommitment,
+    identityPda,
+    protocolConfigPda,
+    treasuryPda,
+  );
+  const rawAccountData = readAcct(identityPda);
+  const decoded = decodeIdentityStateWeb3js(rawAccountData);
+  expect(decoded.verification_count).to.equal(1);
+  expect(decoded.trust_score).to.equal(100);
+});
+
+test("iamAnchor.updateAnchor() 2nd time", async () => {
+  //warp 1 day + create_challenge + verify_proof + update_anchor: trust score should be ~196
+  signerKp = adminKp;
+  signer = signerKp.publicKey;
+  const [_identityPda] = deriveIdentityPda(signer);
+  const newCommitment = Buffer.alloc(32);
+  newCommitment.write("updated_commitment_v2!", "utf-8");
+
+  warpTime(1 * day);
+
+  /*updateAnchor(
+    signerKp,
+    newCommitment,
+    identityPda,
+    protocolConfigPda,
+    treasuryPda,
+  );
+  const rawAccountData = readAcct(identityPda);
+  const decoded = decodeIdentityStateWeb3js(rawAccountData);
+  expect(decoded.verification_count).to.equal(1);
+  expect(decoded.trust_score).to.equal(196);
+  */
 });

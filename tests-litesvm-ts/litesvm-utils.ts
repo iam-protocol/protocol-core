@@ -65,13 +65,13 @@ export const acctEqual = (acct1: PublicKey | undefined, acct2: PublicKey) => {
   }
   expect(acct1.toBase58()).equal(acct2.toBase58());
 };
-export const readAcct = (acct1: PublicKey, acctOwner: PublicKey) => {
+export const readAcct = (acct1: PublicKey, acctOwner?: PublicKey) => {
   const pdaRaw = svm.getAccount(acct1);
   expect(pdaRaw).to.not.be.null;
   const rawAccountData = pdaRaw?.data;
   console.log("rawAccountData:", rawAccountData);
   console.log("pdaRaw?.owner:", pdaRaw?.owner.toBase58());
-  acctEqual(pdaRaw?.owner, acctOwner);
+  if (acctOwner) acctEqual(pdaRaw?.owner, acctOwner);
   return rawAccountData;
 };
 export const ataBalc = (
@@ -110,6 +110,7 @@ export const initializeProtocol = (
   verification_fee: bigint,
 ) => {
   const disc = [188, 233, 252, 106, 134, 146, 202, 91]; //copied from Anchor IDL
+  const progAddr = registryAddr;
   if (challenge_expiry < 0) {
     throw new Error("challenge_expiry should be positive");
   }
@@ -127,10 +128,10 @@ export const initializeProtocol = (
       { pubkey: protocol_config, isSigner: false, isWritable: true },
       { pubkey: SYSTEM_PROGRAM, isSigner: false, isWritable: false },
     ],
-    programId: registryAddr,
+    programId: progAddr,
     data: Buffer.from([...disc, ...argData]),
   });
-  sendTxns(svm, blockhash, [ix], [signer], registryAddr);
+  sendTxns(svm, blockhash, [ix], [signer], progAddr);
 };
 //-------------== iamAnchor Program Methods
 export const mintAnchor = (
@@ -167,6 +168,52 @@ export const mintAnchor = (
     data: Buffer.from([...disc, ...argData]),
   });
   sendTxns(svm, blockhash, [ix], [signer], progAddr);
+};
+
+export const updateAnchor = (
+  signer: Keypair,
+  new_commitment: Buffer<ArrayBuffer>,
+  identity_state: PublicKey,
+  protocol_config: PublicKey,
+  treasury: PublicKey,
+  //systemProgram: PublicKey,
+) => {
+  const disc = [120, 192, 72, 245, 112, 246, 119, 135]; //copied from Anchor IDL
+  const progAddr = iamAnchorAddr;
+  const argData = [...new_commitment];
+  const blockhash = svm.latestBlockhash();
+  const ix = new TransactionInstruction({
+    keys: [
+      { pubkey: signer.publicKey, isSigner: true, isWritable: true },
+      { pubkey: identity_state, isSigner: false, isWritable: true },
+      { pubkey: protocol_config, isSigner: false, isWritable: false }, //belongs to registry
+      { pubkey: treasury, isSigner: false, isWritable: true },
+      { pubkey: SYSTEM_PROGRAM, isSigner: false, isWritable: false },
+    ],
+    programId: progAddr,
+    data: Buffer.from([...disc, ...argData]),
+  });
+  sendTxns(svm, blockhash, [ix], [signer], progAddr);
+};
+export const getTime = () => {
+  const time = Math.floor(Date.now() / 1000);
+  console.log("JS time:", time);
+  return time;
+};
+export const getTimeBig = () => {
+  const time = getTime();
+  return BigInt(time);
+};
+export const setTime = (time: bigint) => {
+  const clock = svm.getClock();
+  clock.unixTimestamp = time;
+  svm.setClock(clock);
+};
+export const day = 86400; // seconds
+export const warpTime = (seconds: number) => {
+  const clock = svm.getClock();
+  clock.unixTimestamp = getTimeBig() + BigInt(seconds);
+  svm.setClock(clock);
 };
 //-------------== Deployment
 export const deployProgram = (
