@@ -27,6 +27,18 @@ security_txt! {
 /// In production, this is read from ProtocolConfig via CPI.
 const DEFAULT_CHALLENGE_EXPIRY: i64 = 300;
 
+/// Upper bound on the Hamming threshold an attacker can submit as a public input.
+/// 96 / 256 bits matches the SDK's `DEFAULT_THRESHOLD` (pulse-sdk/src/config.ts).
+/// Proofs asserting a larger allowed-drift window are rejected before they can
+/// produce a VerificationResult.
+const MAX_THRESHOLD: u16 = 96;
+
+/// Lower bound on the Hamming min_distance an attacker can submit as a public input.
+/// 3 / 256 bits matches the SDK's `DEFAULT_MIN_DISTANCE`. Proofs asserting a
+/// smaller min_distance would pass Hamming=0 (exact replay), defeating the
+/// circuit's anti-replay intent.
+const MIN_DISTANCE_FLOOR: u16 = 3;
+
 #[program]
 pub mod iam_verifier {
     use super::*;
@@ -72,6 +84,20 @@ pub mod iam_verifier {
         // Mark challenge as consumed
         challenge.used = true;
 
+        // Validate public inputs BEFORE running the expensive Groth16 check.
+        // The circuit has 4 public inputs in order:
+        //   [0] commitment_new, [1] commitment_prev, [2] threshold, [3] min_distance
+        // Each is a 32-byte big-endian field element. An attacker controls these
+        // values, so we bound the circuit parameters here to prevent malicious
+        // thresholds that would defeat the anti-replay and distance properties.
+        require!(public_inputs.len() == 4, VerifierError::InvalidPublicInputs);
+        require!(public_inputs[0] != [0u8; 32], VerifierError::InvalidPublicInputs);
+        require!(public_inputs[1] != [0u8; 32], VerifierError::InvalidPublicInputs);
+        let threshold = decode_u16_from_field_element(&public_inputs[2])?;
+        let min_distance = decode_u16_from_field_element(&public_inputs[3])?;
+        require!(threshold <= MAX_THRESHOLD, VerifierError::InvalidPublicInputs);
+        require!(min_distance >= MIN_DISTANCE_FLOOR, VerifierError::InvalidPublicInputs);
+
         // Run Groth16 verification — reverts the entire transaction on invalid proof
         groth16_verifier::verify_proof(&proof_bytes, &public_inputs)?;
 
@@ -84,7 +110,11 @@ pub mod iam_verifier {
             proof_hash[pos] = proof_hash[pos].rotate_left(3) ^ byte;
         }
 
-        // Store verification result (only reached for valid proofs)
+        // Store verification result (only reached for valid proofs).
+        // Commitments + bounded circuit parameters are persisted so that
+        // iam-anchor::update_anchor can cross-program read them and enforce
+        // that (a) commitment_new matches the submitted new_commitment and
+        // (b) commitment_prev matches the identity's stored current_commitment.
         let result = &mut ctx.accounts.verification_result;
         result.verifier = ctx.accounts.verifier.key();
         result.proof_hash = proof_hash;
@@ -92,6 +122,10 @@ pub mod iam_verifier {
         result.is_valid = true;
         result.challenge_nonce = nonce;
         result.bump = ctx.bumps.verification_result;
+        result.commitment_new = public_inputs[0];
+        result.commitment_prev = public_inputs[1];
+        result.threshold = threshold;
+        result.min_distance = min_distance;
 
         emit!(VerificationComplete {
             verifier: result.verifier,
@@ -200,4 +234,16 @@ pub struct VerificationComplete {
     pub verifier: Pubkey,
     pub is_valid: bool,
     pub nonce: [u8; 32],
+}
+
+/// Decode a u16 from a 32-byte big-endian field element. Enforces that the
+/// high 30 bytes are zero, preventing an attacker from passing a large field
+/// element whose low 2 bytes happen to fall in-bounds while the circuit
+/// evaluates the full value. Public inputs are BN254 scalar-field elements
+/// in big-endian layout per the SDK's serializer.
+fn decode_u16_from_field_element(fe: &[u8; 32]) -> Result<u16> {
+    for b in &fe[..30] {
+        require!(*b == 0, VerifierError::InvalidPublicInputs);
+    }
+    Ok(u16::from_be_bytes([fe[30], fe[31]]))
 }
