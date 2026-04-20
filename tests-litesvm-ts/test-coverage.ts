@@ -34,6 +34,7 @@ import {
   readAcct,
   registerValidator,
   registryAddr,
+  sendSolWarpTimeSlot,
   updateAnchor,
   updateProtocolConfig,
   user1Kp,
@@ -163,9 +164,12 @@ test("iamAnchor.updateAnchor(): 1st time", async () => {
   expect(decoded.verification_count).to.equal(1);
   //expect(decoded.trust_score).to.equal(100);
 });
-
+test("sendSol", () => {
+  console.log("\n----------------== SendSol");
+  sendSolWarpTimeSlot(adminKp, 10, 100);
+});
 test("registry.mintAnchor(): 2nd time from the same wallet should fail", async () => {
-  console.log("\n----------------== HHHHHHHHH");
+  console.log("\n----------------==");
   signerKp = adminKp;
   signer = signerKp.publicKey;
   const [identityPda] = deriveIdentityPda(signer);
@@ -269,7 +273,10 @@ test("iamVerifier.createChallenge()", async () => {
   console.log("challengePda:", challengePda.toBase58());
   createChallenge(signerKp, nonce1, challengePda);
 });
-
+test("sendSol", () => {
+  console.log("\n----------------== SendSol");
+  sendSolWarpTimeSlot(adminKp, 20, 102);
+});
 test("iamVerifier.createChallenge() 2nd time with the same nonce should fail", async () => {
   console.log("\n----------------==");
   signerKp = adminKp;
@@ -288,6 +295,10 @@ test("iamVerifier.createChallenge() with another wallet's challenge should fail"
   createChallenge(signerKp, nonce1, challengePda1, expectedErr);
 });
 
+test("sendSol", () => {
+  console.log("\n----------------== SendSol");
+  sendSolWarpTimeSlot(adminKp, 30, 103);
+});
 //----------------== iam-Registry methods
 test("registry.initializeProtocol(): 2nd time should fail", async () => {
   console.log("\n----------------==");
@@ -298,6 +309,7 @@ test("registry.initializeProtocol(): 2nd time should fail", async () => {
   const base_trust_increment = 100; //u16,
   const verification_fee = BigInt(0);
   expectedErr = "AlreadyProcessed";
+
   initializeProtocol(
     signerKp,
     protocolConfigPda,

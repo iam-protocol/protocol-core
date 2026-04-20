@@ -321,6 +321,21 @@ export const warpTime = (seconds: number) => {
   clock.unixTimestamp += BigInt(seconds);
   svm.setClock(clock);
 };
+export const warpSlot = (newSlot: number) => {
+  svm.warpToSlot(BigInt(newSlot));
+  const slot1 = svm.getClock().slot;
+  console.log("new slot:", slot1);
+};
+export const sendSolWarpTimeSlot = (
+  signerKp: Keypair,
+  newSlot: number,
+  lamports: number,
+  recipient = user1,
+) => {
+  sendSol(signerKp, recipient, BigInt(lamports));
+  warpTime(1000);
+  warpSlot(newSlot);
+};
 //-------------== Deployment
 export const deployProgram = (
   programPath: string,
@@ -361,9 +376,6 @@ export const sendTxns = (
   checkLogs(simRes, sendRes, programId, expectedError);
 };
 //-------------== Send SOL
-/**  warpTime(100);
-  sendSol(signerKp, user1);
-  warpTime(100); */
 export const sendSol = (
   signer: Keypair,
   receiver: PublicKey,
