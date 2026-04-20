@@ -42,6 +42,18 @@ pub struct VerificationResult {
     pub challenge_nonce: [u8; 32],
     /// PDA bump seed
     pub bump: u8,
+    /// New fingerprint commitment from public_inputs[0]. Read cross-program
+    /// by iam-anchor::update_anchor to bind the proof to the identity update.
+    pub commitment_new: [u8; 32],
+    /// Previous fingerprint commitment from public_inputs[1]. Read cross-program
+    /// by iam-anchor::update_anchor to bind to the identity's stored commitment.
+    pub commitment_prev: [u8; 32],
+    /// Hamming threshold from public_inputs[2]. Bounded at proof time to prevent
+    /// attacker-chosen circuit parameters.
+    pub threshold: u16,
+    /// Hamming min_distance from public_inputs[3]. Bounded at proof time to
+    /// prevent replay (Hamming=0) attacks via attacker-chosen min_distance=0.
+    pub min_distance: u16,
 }
 
 impl VerificationResult {
@@ -51,5 +63,14 @@ impl VerificationResult {
         + 8   // verified_at
         + 1   // is_valid
         + 32  // challenge_nonce
-        + 1; // bump
+        + 1   // bump
+        + 32  // commitment_new
+        + 32  // commitment_prev
+        + 2   // threshold
+        + 2; // min_distance
+
+    /// Legacy layout size (pre-binding patch). Accounts created before the
+    /// 2026-04-20 upgrade have this size and are rejected by update_anchor
+    /// via a length check that requires LEN (the new, larger size).
+    pub const LEN_V1: usize = 114;
 }
