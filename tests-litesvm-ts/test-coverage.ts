@@ -163,7 +163,6 @@ test("iamAnchor.updateAnchor(): 1st time", async () => {
   const rawAccountData = readAcct(identityPda);
   const decoded = decodeIdentityStateWeb3js(rawAccountData);
   expect(decoded.verification_count).to.equal(1);
-  //expect(decoded.trust_score).to.equal(100);
 });
 
 test("iamAnchor.mintAnchor(): 2nd time from the same wallet should fail", async () => {
