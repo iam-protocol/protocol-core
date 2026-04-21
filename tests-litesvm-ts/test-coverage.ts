@@ -28,13 +28,13 @@ import {
   adminKp,
   ataBalCk,
   createChallenge,
+  expireBlockhash,
   iamAnchorAddr,
   initializeProtocol,
   mintAnchor,
   readAcct,
   registerValidator,
   registryAddr,
-  sendSolWarpTimeSlot,
   updateAnchor,
   updateProtocolConfig,
   user1Kp,
@@ -66,6 +66,7 @@ test("registry.initializeProtocol()", async () => {
   const max_trust_score = 10000; //u16,
   const base_trust_increment = 100; //u16,
   const verification_fee = BigInt(0);
+
   acctIsNull(protocolConfigPda);
   initializeProtocol(
     signerKp,
@@ -76,7 +77,6 @@ test("registry.initializeProtocol()", async () => {
     base_trust_increment,
     verification_fee,
   );
-
   const rawAccountData = readAcct(protocolConfigPda, registryAddr);
   const decoded = decodeProtocolConfigWeb3js(rawAccountData);
   acctEqual(decoded.admin, signer);
@@ -96,6 +96,7 @@ test("iamAnchor.updateAnchor(): calling this before mint_anchor() should fail", 
   const [identityPda] = deriveIdentityPda(signer);
   const newCommitment = Buffer.alloc(32);
   newCommitment.write("updated_commitment_v1!", "utf-8");
+
   expectedErr = "instruction modified data of an account it does not own";
   updateAnchor(
     signerKp,
@@ -164,11 +165,8 @@ test("iamAnchor.updateAnchor(): 1st time", async () => {
   expect(decoded.verification_count).to.equal(1);
   //expect(decoded.trust_score).to.equal(100);
 });
-test("sendSol", () => {
-  console.log("\n----------------== SendSol");
-  sendSolWarpTimeSlot(adminKp, 10, 100);
-});
-test("registry.mintAnchor(): 2nd time from the same wallet should fail", async () => {
+
+test("iamAnchor.mintAnchor(): 2nd time from the same wallet should fail", async () => {
   console.log("\n----------------==");
   signerKp = adminKp;
   signer = signerKp.publicKey;
@@ -181,7 +179,9 @@ test("registry.mintAnchor(): 2nd time from the same wallet should fail", async (
     false,
     tokenProgram,
   );
-  expectedErr = "AlreadyProcessed";
+
+  expectedErr = "custom program error: 0x0";
+  expireBlockhash();
   mintAnchor(
     signerKp,
     commitment,
@@ -206,6 +206,7 @@ test("iamAnchor.updateAnchor(): passing 32 zero bytes as commitment should fail"
   const newCommitment = Buffer.alloc(32);
   //newCommitment.write("", "utf-8");
   console.log("newCommitment", newCommitment);
+
   expectedErr =
     "Error Number: 6000. Error Message: Invalid commitment: must be 32 non-zero bytes";
   updateAnchor(
@@ -226,6 +227,7 @@ test("iamAnchor.updateAnchor(): a wallet calling this on another wallet's Identi
   const [identityPda] = deriveIdentityPda(admin);
   const newCommitment = Buffer.alloc(32);
   newCommitment.write("updated_commitment_v3!", "utf-8");
+
   expectedErr =
     "identity_state. Error Code: ConstraintSeeds. Error Number: 2006. Error Message: A seeds constraint was violated.";
   updateAnchor(
@@ -273,16 +275,14 @@ test("iamVerifier.createChallenge()", async () => {
   console.log("challengePda:", challengePda.toBase58());
   createChallenge(signerKp, nonce1, challengePda);
 });
-test("sendSol", () => {
-  console.log("\n----------------== SendSol");
-  sendSolWarpTimeSlot(adminKp, 20, 102);
-});
-test("iamVerifier.createChallenge() 2nd time with the same nonce should fail", async () => {
+
+test("iamVerifier.createChallenge(): 2nd time with the same nonce should fail", async () => {
   console.log("\n----------------==");
   signerKp = adminKp;
   signer = signerKp.publicKey;
-  expectedErr = "AlreadyProcessed";
 
+  expectedErr = "custom program error: 0x0";
+  expireBlockhash();
   createChallenge(signerKp, nonce1, challengePda1, expectedErr);
 });
 
@@ -290,15 +290,12 @@ test("iamVerifier.createChallenge() with another wallet's challenge should fail"
   console.log("\n----------------==");
   signerKp = user1Kp;
   console.log("challengePda1:", challengePda1.toBase58());
+
   expectedErr =
     "AnchorError caused by account: challenge. Error Code: ConstraintSeeds. Error Number: 2006. Error Message: A seeds constraint was violated";
   createChallenge(signerKp, nonce1, challengePda1, expectedErr);
 });
 
-test("sendSol", () => {
-  console.log("\n----------------== SendSol");
-  sendSolWarpTimeSlot(adminKp, 30, 103);
-});
 //----------------== iam-Registry methods
 test("registry.initializeProtocol(): 2nd time should fail", async () => {
   console.log("\n----------------==");
@@ -308,8 +305,9 @@ test("registry.initializeProtocol(): 2nd time should fail", async () => {
   const max_trust_score = 10000; //u16,
   const base_trust_increment = 100; //u16,
   const verification_fee = BigInt(0);
-  expectedErr = "AlreadyProcessed";
 
+  expectedErr = "custom program error: 0x0";
+  expireBlockhash();
   initializeProtocol(
     signerKp,
     protocolConfigPda,
@@ -325,8 +323,8 @@ test("registry.initializeProtocol(): 2nd time should fail", async () => {
 test("registry.updateProtocolConfig() should fail by non-admin", async () => {
   console.log("\n----------------==");
   signerKp = user1Kp;
-
   const verification_fee = BigInt(0);
+
   expectedErr =
     "AnchorError caused by account: admin. Error Code: Unauthorized. Error Number: 6003. Error Message: Unauthorized: caller is not the expected authority";
   updateProtocolConfig(
@@ -344,6 +342,7 @@ test("registry.registerValidaotr() with insufficient SOL", async () => {
   signer = signerKp.publicKey;
   const minStake = MIN_STAKE - BigInt(100);
   const [validatorStatePda] = deriveValidatorState(signer);
+
   expectedErr =
     "InsufficientStake. Error Number: 6000. Error Message: Insufficient stake amount";
   registerValidator(
@@ -359,26 +358,24 @@ test("registry.registerValidaotr() with sufficient SOL", async () => {
   console.log("\n----------------==");
   signerKp = user1Kp;
   signer = signerKp.publicKey;
-
   const minStake = MIN_STAKE;
   const [validatorStatePda] = deriveValidatorState(signer);
-  expectedErr = "";
+
   registerValidator(
     signerKp,
     minStake,
     protocolConfigPda,
     validatorStatePda,
     vaultPda,
-    expectedErr,
   );
 });
 test("registry.registerValidaotr(): the same validator registering 2nd time should fail", async () => {
   console.log("\n----------------==");
   signerKp = user1Kp;
   signer = signerKp.publicKey;
-
   const [validatorStatePda] = deriveValidatorState(signer);
   const minStake = MIN_STAKE + BigInt(100);
+
   expectedErr = "custom program error: 0x0";
   registerValidator(
     signerKp,

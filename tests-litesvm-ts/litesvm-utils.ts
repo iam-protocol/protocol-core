@@ -360,6 +360,8 @@ acctExists(verifierAddr);
 console.log("program deployment is successful");
 
 //-------------== Send Transactions
+export const expireBlockhash = () => svm.expireBlockhash();
+
 export const sendTxns = (
   blockhash: string,
   ixs: TransactionInstruction[],
