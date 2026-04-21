@@ -391,9 +391,19 @@ pub mod iam_anchor {
         ]);
         drop(config_data);
 
-        // Deduplicate timestamps by calendar day (newest-first order means
-        // same-day entries are adjacent). Multiple verifications on the same day
-        // count once for scoring — consistency over time, not volume.
+        // Deduplicate timestamps by rolling 24-hour window. Two verifications
+        // share a bucket iff they share the same `days_since = floor((now - ts)
+        // / 86400)` — i.e., they fell inside the same 24-hour slice counted
+        // back from `now`. Newest-first iteration means same-bucket entries
+        // are adjacent and collapse to the first occurrence.
+        //
+        // This is a sliding-window rule, not a UTC-calendar rule — it's
+        // timezone-neutral (Solana timestamps carry no TZ) but means two
+        // verifications on different UTC calendar dates that happen to fall
+        // inside the same 24h slice are treated as the same activity day.
+        // The design discourages within-24h burst verification (repeat
+        // attempts under the window don't compound recency) while rewarding
+        // consistent spacing over time — consistency over volume.
         let mut unique_ts = [0i64; 52];
         let mut unique_count: usize = 0;
         let mut prev_day: i64 = -1;
