@@ -188,3 +188,8 @@ test("iamVerifier.createChallenge()", async () => {
 
   createChallenge(signerKp, nonce, challengePda);
 });
+/* challengeExpiry test:
+const fixture = loadProofFixture();
+const proofBytes = Buffer.from(fixture.proof_bytes); // Vec<u8>
+const publicInputs: number[][] = fixture.public_inputs; // Vec<[u8; 32]>
+*/
