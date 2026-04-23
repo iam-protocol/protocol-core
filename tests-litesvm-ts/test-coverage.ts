@@ -170,7 +170,7 @@ test("iamVerifier.verifyProof()", async () => {
 test("iamAnchor.updateAnchor(): 1st time", async () => {
   console.log("\n----------------== iamAnchor.updateAnchor(): 1st time");
   signerKp = adminKp;
-  const { identityPda, nonce, verificationPda } = pdasBySignerKp(signerKp); // setupVerifiedUser(signerKp) is broken into pdasBySignerKp, createChallenge, and verifyProof above
+  const { identityPda, nonce, verificationPda } = pdasBySignerKp(signerKp); // verifyUser(signerKp) is broken into pdasBySignerKp, createChallenge, and verifyProof above
 
   const newCommitment = Buffer.from(fixture.public_inputs[0]);
 

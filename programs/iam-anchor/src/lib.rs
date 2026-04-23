@@ -219,6 +219,36 @@ pub mod iam_anchor {
         Ok(())
     }
 
+    /// Authorize a new wallet by 2 signers
+    pub fn authorize_new_wallet(ctx: Context<AuthorizeNewWallet>) -> Result<()> {
+        let identity = &mut ctx.accounts.identity_state;
+        identity.new_wallet = ctx.accounts.signer_new.key();
+        Ok(())
+    }
+    /// Migrade from an user's old IAM Anchor IdentityState PDA to a new one
+    pub fn migrate_identity(ctx: Context<MigradeIdentity>) -> Result<()> {
+        let signer = ctx.accounts.user.key();
+        let identity = &mut ctx.accounts.identity_state_new;
+        let identity_old = &ctx.accounts.identity_state_old;
+        require!(
+              identity_old.new_wallet == signer,
+              IamAnchorError::UnauthorizedNewWallet
+          );
+        identity.last_verification_timestamp = identity_old.last_verification_timestamp;
+        identity.verification_count = identity_old.verification_count;
+        identity.trust_score = identity_old.trust_score;
+        identity.current_commitment = identity_old.current_commitment;
+        identity.recent_timestamps = identity_old.recent_timestamps;
+        //owner, mint, bump remain intact
+
+        emit!(MigrateIdentity {
+            wallet_old: ctx.accounts.wallet_old.key(),
+            wallet_new: signer,
+            identity_old: ctx.accounts.identity_state_old.key(),
+            identity_new: ctx.accounts.identity_state_new.key(),
+        });
+          Ok(())
+      }
     /// Update the identity state after a successful proof verification.
     ///
     /// Trust score is computed automatically from verification history and protocol config.
@@ -627,6 +657,38 @@ pub mod iam_anchor {
 // --- Account Contexts ---
 
 #[derive(Accounts)]
+pub struct AuthorizeNewWallet<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [b"identity", signer.key().as_ref()],
+        bump,
+    )]
+    pub identity_state: Account<'info, IdentityState>,
+
+    #[account(mut)]
+    pub signer_new: Signer<'info>,
+}
+#[derive(Accounts)]
+pub struct MigradeIdentity<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+    /// CHECK: cannot check this wallet
+    pub wallet_old: UncheckedAccount<'info>,
+    #[account(
+        seeds = [b"identity", wallet_old.key().as_ref()],
+        bump,
+    )]
+    pub identity_state_old: Account<'info, IdentityState>,
+
+    #[account(
+        seeds = [b"identity", user.key().as_ref()],
+        bump,
+    )]
+    pub identity_state_new: Account<'info, IdentityState>,
+}
+#[derive(Accounts)]
 pub struct MintAnchor<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
@@ -776,7 +838,13 @@ pub struct AnchorMinted {
     pub mint: Pubkey,
     pub commitment: [u8; 32],
 }
-
+#[event]
+pub struct MigrateIdentity {
+    pub wallet_old: Pubkey,
+    pub wallet_new: Pubkey,
+    pub identity_old: Pubkey,
+    pub identity_new: Pubkey,
+}
 #[event]
 pub struct AnchorUpdated {
     pub owner: Pubkey,

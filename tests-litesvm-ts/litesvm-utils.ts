@@ -254,6 +254,26 @@ export const mintAnchor = (
   });
   sendTxns(blockhash, [ix], [signer], progAddr, expectedErr);
 };
+export const authorizeNewWallet = (
+  signer: Keypair,
+  identity_state: PublicKey,
+  signer_new: Keypair,
+  expectedErr = "",
+) => {
+  const disc = [178, 186, 185, 108, 51, 219, 107, 197]; //copied from Anchor IDL
+  const progAddr = iamAnchorAddr;
+  const blockhash = svm.latestBlockhash();
+  const ix = new TransactionInstruction({
+    keys: [
+      { pubkey: signer.publicKey, isSigner: true, isWritable: true },
+      { pubkey: identity_state, isSigner: false, isWritable: true },
+      { pubkey: signer_new.publicKey, isSigner: true, isWritable: true },
+    ],
+    programId: progAddr,
+    data: Buffer.from([...disc]),
+  });
+  sendTxns(blockhash, [ix], [signer, signer_new], progAddr, expectedErr);
+};
 
 export const updateAnchor = (
   signer: Keypair,

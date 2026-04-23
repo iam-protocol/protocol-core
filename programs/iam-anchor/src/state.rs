@@ -26,6 +26,8 @@ pub struct IdentityState {
     /// has never been reset (including freshly minted accounts and accounts
     /// created before this field existed and then realloc'd in-place).
     pub last_reset_timestamp: i64,
+    /// new wallet for migrate_identity()
+    pub new_wallet: Pubkey,
 }
 
 impl IdentityState {
@@ -39,7 +41,8 @@ impl IdentityState {
         + 32  // mint
         + 1   // bump
         + 416 // recent_timestamps (52 × 8 bytes)
-        + 8;  // last_reset_timestamp
+        + 8   // last_reset_timestamp
+        + 32; // new_wallet
 
     /// Pre-reset layout size. Used by `reset_identity_state` to detect legacy
     /// accounts that need realloc before the new field can be written.

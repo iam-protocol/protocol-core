@@ -155,6 +155,7 @@ export type IdentityStateAcct = {
   bump: number;
   recent_timestamps: bigint[]; //len = 52; BigInt64Array
   last_reset_timestamp: bigint;
+  new_wallet: Address;
 };
 export const identityStateAcctDecoder: FixedSizeDecoder<IdentityStateAcct> =
   getStructDecoder([
@@ -169,6 +170,7 @@ export const identityStateAcctDecoder: FixedSizeDecoder<IdentityStateAcct> =
     ["bump", getU8Decoder()],
     ["recent_timestamps", getArrayDecoder(getI64Decoder(), { size: 52 })],
     ["last_reset_timestamp", getI64Decoder()],
+    ["new_wallet", getAddressDecoder()],
   ]);
 export const decodeIdentityState = (
   bytes: ReadonlyUint8Array | Uint8Array<ArrayBufferLike>,
@@ -188,6 +190,8 @@ export const decodeIdentityState = (
     console.log("mint:", decoded.mint);
     console.log("bump:", decoded.bump);
     console.log("recent_timestamps:", decoded.recent_timestamps);
+    console.log("last_reset_timestamp:", decoded.last_reset_timestamp);
+    console.log("new_wallet:", decoded.new_wallet);
   }
   return decoded;
 };
@@ -208,6 +212,7 @@ export const decodeIdentityPdaDev = (
     mint: new PublicKey(decoded.mint.toString()),
     recent_timestamps: decoded.recent_timestamps,
     last_reset_timestamp: decoded.last_reset_timestamp,
+    new_wallet: new PublicKey(decoded.new_wallet.toString()),
   };
   return decodedV1;
 };
@@ -222,6 +227,7 @@ export type IdentityStateAcctWeb3js = {
   bump: number;
   recent_timestamps: bigint[];
   last_reset_timestamp: bigint;
+  new_wallet: PublicKey;
 };
 //-----------== ProtocolConfigPDA
 export const [protocolConfigPda, protocolConfigBump] =

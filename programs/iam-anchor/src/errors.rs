@@ -28,4 +28,6 @@ pub enum IamAnchorError {
     PrevCommitmentMismatch,
     #[msg("Reset cooldown has not elapsed since the last reset")]
     ResetCooldownActive,
+    #[msg("caller is not authorized by the old identity")]
+    UnauthorizedNewWallet,
 }
