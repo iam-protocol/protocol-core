@@ -147,7 +147,14 @@ test("iamAnchor.authorizeNewWallet()", async () => {
   pdas = pdasBySignerKp(signerKp); //{signer, identityPda, mintPda, nonce, challengePda, verificationPda }
 
   warpTime(13 * day + 7);
-  authorizeNewWallet(adminKp, pdas.identityPda, newWalletKp);
+  authorizeNewWallet(
+    adminKp,
+    pdas.identityPda,
+    newWalletKp,
+    tokenProgram,
+    pdas.mintPda,
+    pdas.ata,
+  );
   rawAccData = readAcct(pdas.identityPda, iamAnchorAddr);
   identity = decodeIdentityPdaDev(rawAccData);
   identityOld = identity;
@@ -201,8 +208,7 @@ test("iamAnchor.migrateIdentity() by user1", async () => {
   expect(balcSol(pdasAdmin.identityPda)).eq(null);
   acctIsNull(pdasAdmin.identityPda);
   balcAtaCk(pdasAdmin.ata, zero, "Mint_Old", 0);
-  //TODO: authorize_new_wallet shouild delegate ata_old to this program
-  //TODO: Make TokenProgram to close old Mint and burn tokens, close TokenAccount...
+  //TODO: Make TokenProgram to close old Mint and close TokenAccount...
   //acctIsNull(pdasAdmin.mintPda);
   //acctIsNull(ata);
 });

@@ -152,7 +152,14 @@ test("iamAnchor.authorizeNewWallet()", async () => {
   pdas = pdasBySignerKp(signerKp); //{signer, identityPda, mintPda, nonce, challengePda, verificationPda }
 
   warpTime(13 * day + 7);
-  authorizeNewWallet(adminKp, pdas.identityPda, newWalletKp);
+  authorizeNewWallet(
+    adminKp,
+    pdas.identityPda,
+    newWalletKp,
+    tokenProgram,
+    pdas.mintPda,
+    pdas.ata,
+  );
   rawAccData = readAcct(pdas.identityPda, iamAnchorAddr);
   identity = decodeIdentityPdaDev(rawAccData);
   acctEqual(identity.owner, signerKp.publicKey);

@@ -259,6 +259,9 @@ export const authorizeNewWallet = (
   signer: Keypair,
   identity_state: PublicKey,
   signer_new: Keypair,
+  tokenProgram: PublicKey,
+  mint: PublicKey,
+  token_account: PublicKey,
   expectedErr = "",
 ) => {
   const disc = [178, 186, 185, 108, 51, 219, 107, 197]; //copied from Anchor IDL
@@ -269,6 +272,9 @@ export const authorizeNewWallet = (
       { pubkey: signer.publicKey, isSigner: true, isWritable: true },
       { pubkey: identity_state, isSigner: false, isWritable: true },
       { pubkey: signer_new.publicKey, isSigner: true, isWritable: true },
+      { pubkey: tokenProgram, isSigner: false, isWritable: false },
+      { pubkey: mint, isSigner: false, isWritable: true },
+      { pubkey: token_account, isSigner: false, isWritable: true },
     ],
     programId: progAddr,
     data: Buffer.from([...disc]),

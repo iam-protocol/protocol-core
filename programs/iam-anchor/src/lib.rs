@@ -3,7 +3,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token_2022::{self, burn, Burn, spl_token_2022};
+use anchor_spl::token_2022::{self, burn, Burn, spl_token_2022, Approve};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use solana_security_txt::security_txt;
 
@@ -94,6 +94,8 @@ const MINT_SIZE_WITH_NON_TRANSFERABLE: usize = 170;
 
 #[program]
 pub mod iam_anchor {
+    use anchor_spl::token;
+
     use super::*;
 
     /// Mint a new IAM Anchor identity for the caller. rgb(107, 223, 7)
@@ -219,10 +221,20 @@ pub mod iam_anchor {
         Ok(())
     }
 
-    /// Authorize a new wallet by 2 signers. This can be done many times before invoking migrate_identity()
+    /// Authorize a new wallet by 2 signers. This can be done many times before invoking migrate_identity()//rgb(107, 223, 7)
     pub fn authorize_new_wallet(ctx: Context<AuthorizeNewWallet>) -> Result<()> {
         let identity = &mut ctx.accounts.identity_state;
         identity.new_wallet = ctx.accounts.signer_new.key();
+
+        let cpi_accounts = Approve {
+        to: ctx.accounts.token_account.to_account_info(),
+        delegate: ctx.accounts.signer_new.to_account_info(),
+        authority: ctx.accounts.signer.to_account_info(),
+    };
+    let cpi_program = ctx.accounts.token_program.to_account_info();
+    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    token_2022::approve(cpi_ctx, 1)?;
+    //token_2022::approve_checked(ctx, amount, decimals);
         Ok(())
     }
     /// Migrade from an user's old IAM Anchor IdentityState PDA to a new one
@@ -343,7 +355,7 @@ pub mod iam_anchor {
         let cpi_accounts = Burn {
             mint: ctx.accounts.mint_old.to_account_info(),
             from: ctx.accounts.token_account_old.to_account_info(),
-            authority: ctx.accounts.user_old.to_account_info(),
+            authority: ctx.accounts.user.to_account_info(),
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
@@ -774,9 +786,21 @@ pub struct AuthorizeNewWallet<'info> {
         bump,
     )]
     pub identity_state: Account<'info, IdentityState>,
-
     #[account(mut)]
     pub signer_new: Signer<'info>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+    #[account(
+        mut,
+        seeds = [b"mint", signer.key().as_ref()],
+        bump,
+    )]
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(mut,
+        associated_token::mint = mint,
+        associated_token::authority = signer,
+        associated_token::token_program = token_program)]
+    pub token_account: InterfaceAccount<'info, TokenAccount>,
 }
 #[derive(Accounts)]//rgb(107, 223, 7)
 pub struct MigradeIdentity<'info> {
