@@ -16,8 +16,8 @@ import {
   TransactionMetadata,
 } from "litesvm";
 import {
+  anchorAddr,
   getPdas,
-  entrosAnchorAddr,
   loadProofFixture,
   numToBytes,
   registryAddr,
@@ -57,7 +57,7 @@ export const pdasBySignerKp = (signerKp: Keypair) => {
 };
 
 export const verifyUser = (signerKp: Keypair) => {
-  const { signer, identityPda, mintPda, nonce, challengePda, verificationPda } =
+  const { identityPda, mintPda, nonce, challengePda, verificationPda } =
     pdasBySignerKp(signerKp);
 
   createChallenge(signerKp, nonce, challengePda);
@@ -75,7 +75,6 @@ export const verifyUser = (signerKp: Keypair) => {
     verificationPda,
   );
   return {
-    signer,
     identityPda,
     mintPda,
     nonce,
@@ -108,7 +107,8 @@ export const readAcct = (acct1: PublicKey, acctOwner?: PublicKey) => {
   if (acctOwner) acctEqual(pdaRaw?.owner, acctOwner);
   return rawAccountData;
 };
-export const ataBalc = (
+export const balcSol = (target: PublicKey) => svm.getBalance(target);
+export const balcAta = (
   ata: PublicKey,
   name = "token balc",
   isVerbose = true,
@@ -123,13 +123,13 @@ export const ataBalc = (
   if (isVerbose) console.log(name, ":", decoded.amount);
   return decoded.amount;
 };
-export const ataBalCk = (
+export const balcAtaCk = (
   ata: PublicKey,
   expectedAmount: bigint,
   name: string,
   decimals = 6,
 ) => {
-  const amount = ataBalc(ata, name, false);
+  const amount = balcAta(ata, name, false);
   console.log(name, "token:", amount, amount / BigInt(10 ** decimals));
   expect(amount).eq(expectedAmount);
 };
@@ -233,7 +233,7 @@ export const mintAnchor = (
   expectedErr = "",
 ) => {
   const disc = [68, 56, 113, 102, 236, 152, 146, 60]; //copied from Anchor IDL
-  const progAddr = entrosAnchorAddr;
+  const progAddr = anchorAddr;
   const argData = [...commitment];
   const blockhash = svm.latestBlockhash();
   const ix = new TransactionInstruction({
@@ -255,6 +255,81 @@ export const mintAnchor = (
   sendTxns(blockhash, [ix], [signer], progAddr, expectedErr);
 };
 
+export const authorizeNewWallet = (
+  signer: Keypair,
+  identity_state: PublicKey,
+  signer_new: Keypair,
+  tokenProgram: PublicKey,
+  mint: PublicKey,
+  token_account: PublicKey,
+  expectedErr = "",
+) => {
+  const disc = [178, 186, 185, 108, 51, 219, 107, 197]; //copied from Anchor IDL
+  const progAddr = anchorAddr;
+  const blockhash = svm.latestBlockhash();
+  const ix = new TransactionInstruction({
+    keys: [
+      { pubkey: signer.publicKey, isSigner: true, isWritable: true },
+      { pubkey: identity_state, isSigner: false, isWritable: true },
+      { pubkey: signer_new.publicKey, isSigner: true, isWritable: true },
+      { pubkey: tokenProgram, isSigner: false, isWritable: false },
+      { pubkey: mint, isSigner: false, isWritable: true },
+      { pubkey: token_account, isSigner: false, isWritable: true },
+    ],
+    programId: progAddr,
+    data: Buffer.from([...disc]),
+  });
+  sendTxns(blockhash, [ix], [signer, signer_new], progAddr, expectedErr);
+};
+
+export const expectTheSameArray = (array1: bigint[], array2: bigint[]) => {
+  expect(array1.length).to.equal(array2.length);
+  for (const [index, value] of array1.entries()) {
+    expect(array2[index]).to.equal(value);
+  }
+};
+export const migrateIdentity = (
+  signer: Keypair,
+  identity_state: PublicKey,
+  mint: PublicKey,
+  mintAuthority: PublicKey,
+  tokenAccount: PublicKey,
+  associatedTokenProgram = ASSOCIATED_TOKEN_PROGRAM_ID,
+  tokenProgram: PublicKey,
+  protocol_config: PublicKey,
+  treasury: PublicKey,
+  wallet_old: PublicKey,
+  identity_state_old: PublicKey,
+  mint_old: PublicKey,
+  token_account_old: PublicKey,
+  expectedErr = "",
+) => {
+  const disc = [161, 192, 70, 80, 47, 37, 26, 10]; //copied from Anchor IDL
+  const progAddr = anchorAddr;
+  const blockhash = svm.latestBlockhash();
+  const ix = new TransactionInstruction({
+    keys: [
+      { pubkey: signer.publicKey, isSigner: true, isWritable: true },
+      { pubkey: identity_state, isSigner: false, isWritable: true },
+      { pubkey: mint, isSigner: false, isWritable: true },
+      { pubkey: mintAuthority, isSigner: false, isWritable: false }, //non writable
+      { pubkey: tokenAccount, isSigner: false, isWritable: true },
+      { pubkey: associatedTokenProgram, isSigner: false, isWritable: false },
+      { pubkey: tokenProgram, isSigner: false, isWritable: false },
+      { pubkey: SYSTEM_PROGRAM, isSigner: false, isWritable: false },
+      { pubkey: protocol_config, isSigner: false, isWritable: false }, //belongs to registry
+      { pubkey: treasury, isSigner: false, isWritable: true },
+      { pubkey: wallet_old, isSigner: false, isWritable: true },
+      { pubkey: identity_state_old, isSigner: false, isWritable: true },
+      { pubkey: mint_old, isSigner: false, isWritable: true },
+      { pubkey: token_account_old, isSigner: false, isWritable: true },
+    ],
+    programId: progAddr,
+    data: Buffer.from([...disc]),
+  });
+  sendTxns(blockhash, [ix], [signer], progAddr, expectedErr);
+};
+
 export const updateAnchor = (
   signer: Keypair,
   new_commitment: Buffer<ArrayBuffer>,
@@ -266,7 +341,7 @@ export const updateAnchor = (
   expectedErr = "",
 ) => {
   const disc = [120, 192, 72, 245, 112, 246, 119, 135]; //copied from Anchor IDL
-  const progAddr = entrosAnchorAddr;
+  const progAddr = anchorAddr;
   const new_commitment_array = Array.from(new_commitment);
   console.log("new_commitment_array:", new_commitment_array);
   const argData = [...new_commitment_array, ...verification_nonce];
@@ -275,7 +350,7 @@ export const updateAnchor = (
     keys: [
       { pubkey: signer.publicKey, isSigner: true, isWritable: true },
       { pubkey: identity_state, isSigner: false, isWritable: true },
-      { pubkey: verification_result, isSigner: false, isWritable: true },
+      { pubkey: verification_result, isSigner: false, isWritable: false },
       { pubkey: protocol_config, isSigner: false, isWritable: false }, //belongs to registry
       { pubkey: treasury, isSigner: false, isWritable: true },
       { pubkey: SYSTEM_PROGRAM, isSigner: false, isWritable: false },
@@ -295,7 +370,7 @@ export const resetIdentityState = (
   expectedErr = "",
 ) => {
   const disc = [26, 78, 86, 143, 247, 132, 85, 203]; //copied from Anchor IDL
-  const progAddr = entrosAnchorAddr;
+  const progAddr = anchorAddr;
   const argData = [...new_commitment];
   const blockhash = svm.latestBlockhash();
   const ix = new TransactionInstruction({
@@ -374,7 +449,11 @@ export const verifyProof = (
 export const getJsTime = () => {
   const time = Math.floor(Date.now() / 1000);
   console.log("JS time:", time);
-  return time;
+  return BigInt(time);
+};
+export const getSolTime = () => {
+  const clock = svm.getClock();
+  return clock.unixTimestamp;
 };
 export const setTime = (time: bigint) => {
   const clock = svm.getClock();
@@ -392,6 +471,7 @@ export const warpSlot = (newSlot: number) => {
   const slot1 = svm.getClock().slot;
   console.log("new slot:", slot1);
 };
+export const defaultRecentTimestamps = new Array(52).fill(BigInt(0));
 //-------------== Deployment
 export const deployProgram = (
   programPath: string,
@@ -407,8 +487,8 @@ export const deployProgram = (
   //solana program dump progAddr pyth.so --url mainnet-beta
   svm.addProgramFromFile(programId, programPath);
 };
-deployProgram("target/deploy/entros_anchor.so", entrosAnchorAddr);
-acctExists(entrosAnchorAddr);
+deployProgram("target/deploy/entros_anchor.so", anchorAddr);
+acctExists(anchorAddr);
 deployProgram("target/deploy/entros_registry.so", registryAddr);
 acctExists(registryAddr);
 deployProgram("target/deploy/entros_verifier.so", verifierAddr);

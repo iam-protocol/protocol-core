@@ -25,10 +25,38 @@ import {
   getU64Encoder,
   lamports,
 } from "@solana/kit";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { entrosAnchorAddr, registryAddr, verifierAddr } from "./litesvm-utils.ts";
 
-//-----------==
+//-----------== Basic settings
+export const anchorAddr = new PublicKey(
+  "GZYwTp2ozeuRA5Gof9vs4ya961aANcJBdUzB7LN6q4b2",
+);
+console.log("anchorAddr:", anchorAddr.toBase58());
+
+export const registryAddr = new PublicKey(
+  "6VBs3zr9KrfFPGd6j7aGBPQWwZa5tajVfA7HN6MMV9VW",
+);
+console.log("registryAddr:", registryAddr.toBase58());
+
+export const verifierAddr = new PublicKey(
+  "4F97jNoxQzT2qRbkWpW3ztC3Nz2TtKj3rnKG8ExgnrfV",
+);
+console.log("verifierAddr:", verifierAddr.toBase58());
+
+export const MIN_STAKE = BigInt(1_000_000_000);
+console.log("MIN_STAKE:", MIN_STAKE); // 1 SOL
+export const CHALLENGE_EXPIRY = BigInt(300); //i64,
+export const MAX_TRUST_SCORE = 10000; //u16,
+export const BASE_TRUST_INCREMENT = 100; //u16,
+export const VERIFICATION_FEE = BigInt(0);
+
+//-----------== entrosRegistry
 export const [treasuryPda] = PublicKey.findProgramAddressSync(
   [Buffer.from("protocol_treasury")],
   registryAddr,
@@ -63,16 +91,61 @@ export const [vaultPda] = PublicKey.findProgramAddressSync(
   [Buffer.from("vault")],
   registryAddr,
 );
+//-------------==
+export type Pdas = {
+  identityPda: PublicKey;
+  mintPda: PublicKey;
+  nonce: number[];
+  challengePda: PublicKey;
+  verificationPda: PublicKey;
+  ata: PublicKey;
+};
+export const getPdas = (
+  signer: PublicKey,
+  tokenProgram = TOKEN_2022_PROGRAM_ID,
+): Pdas => {
+  const [identityPda] = deriveIdentityPda(signer);
+  const [mintPda] = deriveMintPda(signer);
+  const nonce = generateNonce();
+  const [challengePda] = deriveChallengePda(signer, nonce);
+  const [verificationPda] = deriveVerificationPda(signer, nonce);
+  const ata = getAta(mintPda, signer, false, tokenProgram);
+  return {
+    identityPda,
+    mintPda,
+    nonce,
+    challengePda,
+    verificationPda,
+    ata,
+  };
+};
 
+//-----------==
+export const getAta = (
+  mint: PublicKey,
+  owner: PublicKey,
+  allowOwnerOffCurve = true,
+  programId = TOKEN_PROGRAM_ID,
+  associatedTokenProgramId = ASSOCIATED_TOKEN_PROGRAM_ID,
+) => {
+  const ata = getAssociatedTokenAddressSync(
+    mint,
+    owner,
+    allowOwnerOffCurve,
+    programId,
+    associatedTokenProgramId,
+  );
+  return ata;
+};
 //-----------== entrosAnchor
 export const deriveMintPda = (user: PublicKey) =>
   PublicKey.findProgramAddressSync(
     [Buffer.from("mint"), user.toBuffer()],
-    entrosAnchorAddr,
+    anchorAddr,
   );
 export const [mintAuthorityPda] = PublicKey.findProgramAddressSync(
   [Buffer.from("mint_authority")],
-  entrosAnchorAddr,
+  anchorAddr,
 );
 console.log("mintAuthorityPda:", mintAuthorityPda.toBase58());
 
@@ -80,7 +153,7 @@ console.log("mintAuthorityPda:", mintAuthorityPda.toBase58());
 export const deriveIdentityPda = (user: PublicKey) =>
   PublicKey.findProgramAddressSync(
     [Buffer.from("identity"), user.toBuffer()],
-    entrosAnchorAddr,
+    anchorAddr,
   );
 export type IdentityStateAcct = {
   anchorDiscriminator: ReadonlyUint8Array;
@@ -94,6 +167,7 @@ export type IdentityStateAcct = {
   bump: number;
   recent_timestamps: bigint[]; //len = 52; BigInt64Array
   last_reset_timestamp: bigint;
+  new_wallet: Address;
 };
 export const identityStateAcctDecoder: FixedSizeDecoder<IdentityStateAcct> =
   getStructDecoder([
@@ -108,6 +182,7 @@ export const identityStateAcctDecoder: FixedSizeDecoder<IdentityStateAcct> =
     ["bump", getU8Decoder()],
     ["recent_timestamps", getArrayDecoder(getI64Decoder(), { size: 52 })],
     ["last_reset_timestamp", getI64Decoder()],
+    ["new_wallet", getAddressDecoder()],
   ]);
 export const decodeIdentityState = (
   bytes: ReadonlyUint8Array | Uint8Array<ArrayBufferLike>,
@@ -127,11 +202,13 @@ export const decodeIdentityState = (
     console.log("mint:", decoded.mint);
     console.log("bump:", decoded.bump);
     console.log("recent_timestamps:", decoded.recent_timestamps);
+    console.log("last_reset_timestamp:", decoded.last_reset_timestamp);
+    console.log("new_wallet:", decoded.new_wallet);
   }
   return decoded;
 };
 // This below is only used for @solana/web3.js as it is outputing PublicKey, not Address
-export const decodeIdentityStateWeb3js = (
+export const decodeIdentityPdaDev = (
   bytes: ReadonlyUint8Array | Uint8Array<ArrayBufferLike> | undefined,
 ) => {
   if (!bytes) throw new Error("bytes invalid");
@@ -147,6 +224,7 @@ export const decodeIdentityStateWeb3js = (
     mint: new PublicKey(decoded.mint.toString()),
     recent_timestamps: decoded.recent_timestamps,
     last_reset_timestamp: decoded.last_reset_timestamp,
+    new_wallet: new PublicKey(decoded.new_wallet.toString()),
   };
   return decodedV1;
 };
@@ -161,6 +239,7 @@ export type IdentityStateAcctWeb3js = {
   bump: number;
   recent_timestamps: bigint[];
   last_reset_timestamp: bigint;
+  new_wallet: PublicKey;
 };
 //-----------== ProtocolConfigPDA
 export const [protocolConfigPda, protocolConfigBump] =
@@ -177,6 +256,7 @@ export type ProtocolConfigAcct = {
   base_trust_increment: number;
   bump: number;
   verification_fee: bigint;
+  migration_fee: bigint;
 }; //padding: bigint[];
 export const protocolconfigAcctDecoder: FixedSizeDecoder<ProtocolConfigAcct> =
   getStructDecoder([
@@ -188,6 +268,7 @@ export const protocolconfigAcctDecoder: FixedSizeDecoder<ProtocolConfigAcct> =
     ["base_trust_increment", getU16Decoder()],
     ["bump", getU8Decoder()],
     ["verification_fee", getU64Decoder()],
+    ["migration_fee", getU64Decoder()],
     //["padding", getArrayDecoder(getU64Decoder(), { size: 3 })],
   ]);
 export const decodeProtocolConfig = (
@@ -203,16 +284,17 @@ export const decodeProtocolConfig = (
     console.log("base_trust_increment:", decoded.base_trust_increment);
     console.log("bump:", decoded.bump);
     console.log("verification_fee:", decoded.verification_fee);
+    console.log("migration_fee:", decoded.migration_fee);
   }
   return decoded;
 };
 // This below is only used for @solana/web3.js as it is outputing PublicKey, not Address
-export const decodeProtocolConfigWeb3js = (
+export const decodeProtocolConfigDev = (
   bytes: ReadonlyUint8Array | Uint8Array<ArrayBufferLike> | undefined,
 ) => {
   if (!bytes) throw new Error("bytes invalid");
   const decoded = decodeProtocolConfig(bytes, true);
-  const decodedV1: ProtocolConfigAcctWeb3js = {
+  const decodedV1: ProtocolConfigAcctDev = {
     admin: new PublicKey(decoded.admin.toString()),
     min_stake: decoded.min_stake,
     challenge_expiry: decoded.challenge_expiry,
@@ -220,10 +302,11 @@ export const decodeProtocolConfigWeb3js = (
     base_trust_increment: decoded.base_trust_increment,
     bump: decoded.bump,
     verification_fee: decoded.verification_fee,
+    migration_fee: decoded.migration_fee,
   };
   return decodedV1;
 };
-export type ProtocolConfigAcctWeb3js = {
+export type ProtocolConfigAcctDev = {
   admin: PublicKey;
   min_stake: bigint;
   challenge_expiry: bigint;
@@ -231,6 +314,7 @@ export type ProtocolConfigAcctWeb3js = {
   base_trust_increment: number;
   bump: number;
   verification_fee: bigint;
+  migration_fee: bigint;
 };
 
 //-------------== Encode numbers

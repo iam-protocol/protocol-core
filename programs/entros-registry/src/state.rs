@@ -16,6 +16,7 @@ pub struct ProtocolConfig {
     pub bump: u8,
     /// Lamports charged per verification (user-pays model)
     pub verification_fee: u64,
+    pub migration_fee: u64,
 }
 
 impl ProtocolConfig {
@@ -26,7 +27,8 @@ impl ProtocolConfig {
         + 2   // max_trust_score
         + 2   // base_trust_increment
         + 1   // bump
-        + 8; // verification_fee
+        + 8   // verification_fee
+        + 8;  // migration_fee
 }
 
 #[account]
