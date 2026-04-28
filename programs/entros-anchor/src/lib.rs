@@ -212,7 +212,14 @@ pub mod entros_anchor {
         identity.bump = ctx.bumps.identity_state;
         identity.recent_timestamps = [0i64; 52];
 
-        // Read verification fee from protocol config (cross-program, entros-registry)
+        // Read verification fee from protocol config (cross-program, entros-registry).
+        // The accounts struct constrains the PDA address via seeds::program,
+        // but UncheckedAccount skips Anchor's owner validation — assert it
+        // explicitly at every raw read site.
+        require!(
+            ctx.accounts.protocol_config.owner == &REGISTRY_PROGRAM_ID,
+            EntrosAnchorError::InvalidProtocolConfig
+        );
         let config_data = ctx.accounts.protocol_config.try_borrow_data()?;
         let verification_fee = if config_data.len() >= 69 {
             u64::from_le_bytes([
@@ -375,6 +382,10 @@ pub mod entros_anchor {
         identity.last_reset_timestamp = identity_old.last_reset_timestamp;
 
         // Read verification fee from protocol config (cross-program, entroRegistry)
+        require!(
+            ctx.accounts.protocol_config.owner == &REGISTRY_PROGRAM_ID,
+            EntrosAnchorError::InvalidProtocolConfig
+        );
         let config_data = ctx.accounts.protocol_config.try_borrow_data()?;
         let migration_fee = if config_data.len() >= 77 {
             u64::from_le_bytes([
@@ -552,6 +563,10 @@ pub mod entros_anchor {
             .try_into()
             .map_err(|_| error!(EntrosAnchorError::InvalidIdentityState))?;
         let verified_at = i64::from_le_bytes(verified_at_bytes);
+        // Reject future-dated proofs before the age check: saturating_sub on
+        // i64 returns a negative value when verified_at > now, which trivially
+        // satisfies <= MAX_PROOF_AGE_SECS and would let it through.
+        require!(verified_at <= now, EntrosAnchorError::ProofFromFuture);
         require!(
             now.saturating_sub(verified_at) <= MAX_PROOF_AGE_SECS,
             EntrosAnchorError::ProofExpired
@@ -589,6 +604,10 @@ pub mod entros_anchor {
 
         // Read protocol config (cross-program, entros-registry)
         // Layout: 8 disc + 32 admin + 8 min_stake + 8 challenge_expiry = offset 56
+        require!(
+            ctx.accounts.protocol_config.owner == &REGISTRY_PROGRAM_ID,
+            EntrosAnchorError::InvalidProtocolConfig
+        );
         let config_data = ctx.accounts.protocol_config.try_borrow_data()?;
         require!(
             config_data.len() >= 69,
@@ -788,6 +807,10 @@ pub mod entros_anchor {
 
         // Read verification fee from protocol config (cross-program, entros-registry).
         // Same offset as mint_anchor (bytes 61..69 after discriminator).
+        require!(
+            ctx.accounts.protocol_config.owner == &REGISTRY_PROGRAM_ID,
+            EntrosAnchorError::InvalidProtocolConfig
+        );
         let verification_fee = {
             let config_data = ctx.accounts.protocol_config.try_borrow_data()?;
             if config_data.len() >= 69 {
