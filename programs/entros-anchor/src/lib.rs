@@ -648,6 +648,12 @@ pub mod entros_anchor {
                 prev_day = days_since;
             }
         }
+        // recent_timestamps is shifted newest-first in update_anchor, so
+        // unique_ts inherits that order. The gap loop below relies on it to
+        // produce non-negative day counts.
+        debug_assert!(
+            unique_ts[..unique_count].windows(2).all(|w| w[0] >= w[1]),
+        );
 
         // Recency-weighted score from unique verification days
         let mut recency_score: u64 = 0;
@@ -682,7 +688,9 @@ pub mod entros_anchor {
         let age_seconds = now
             .checked_sub(identity.creation_timestamp)
             .ok_or(EntrosAnchorError::ArithmeticOverflow)?;
-        let age_days: u64 = (age_seconds / 86400).try_into().unwrap_or(0);
+        // Saturate negative ages (clock-rollback edge case) to 0 days. The
+        // u64 cast is then lossless because age_days is always non-negative.
+        let age_days: u64 = (age_seconds / 86400).max(0) as u64;
         let age_bonus = isqrt(age_days.min(365)) * 2;
 
         let total = base_score
