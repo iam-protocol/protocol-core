@@ -7,17 +7,17 @@ type PublicKey = web3.PublicKey;
 //--------- entrosAnchor
 export const deriveIdentityPda = (
   user: PublicKey,
-  iamAnchorProgId: PublicKey,
+  entrosAnchorProgId: PublicKey,
 ) =>
   web3.PublicKey.findProgramAddressSync(
     [Buffer.from("identity"), user.toBuffer()],
-    iamAnchorProgId,
+    entrosAnchorProgId,
   );
 
-export const deriveMintPda = (user: PublicKey, iamAnchorProgId: PublicKey) =>
+export const deriveMintPda = (user: PublicKey, entrosAnchorProgId: PublicKey) =>
   web3.PublicKey.findProgramAddressSync(
     [Buffer.from("mint"), user.toBuffer()],
-    iamAnchorProgId,
+    entrosAnchorProgId,
   );
 
 //--------- entrosVerifier
@@ -81,12 +81,30 @@ export async function bootstrapVerifiedUser(params: {
   treasuryPda: PublicKey;
   mintAuthorityPda: PublicKey;
 }): Promise<BootstrappedUser> {
-  const { user, entrosAnchor, entrosVerifier, fixture, protocolConfigPda, treasuryPda, mintAuthorityPda } = params;
-  const { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } = await import("@solana/spl-token");
+  const {
+    user,
+    entrosAnchor,
+    entrosVerifier,
+    fixture,
+    protocolConfigPda,
+    treasuryPda,
+    mintAuthorityPda,
+  } = params;
+  const { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } = await import(
+    "@solana/spl-token"
+  );
 
-  const [identityPda] = deriveIdentityPda(user.publicKey, entrosAnchor.programId);
+  const [identityPda] = deriveIdentityPda(
+    user.publicKey,
+    entrosAnchor.programId,
+  );
   const [mintPda] = deriveMintPda(user.publicKey, entrosAnchor.programId);
-  const ata = getAssociatedTokenAddressSync(mintPda, user.publicKey, false, TOKEN_2022_PROGRAM_ID);
+  const ata = getAssociatedTokenAddressSync(
+    mintPda,
+    user.publicKey,
+    false,
+    TOKEN_2022_PROGRAM_ID,
+  );
 
   const initialCommitment = Buffer.from(fixture.public_inputs[1]);
 
@@ -98,7 +116,9 @@ export async function bootstrapVerifiedUser(params: {
       mint: mintPda,
       mintAuthority: mintAuthorityPda,
       tokenAccount: ata,
-      associatedTokenProgram: new web3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"),
+      associatedTokenProgram: new web3.PublicKey(
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      ),
       tokenProgram: TOKEN_2022_PROGRAM_ID,
       systemProgram: web3.SystemProgram.programId,
       protocolConfig: protocolConfigPda,
@@ -108,8 +128,16 @@ export async function bootstrapVerifiedUser(params: {
     .rpc();
 
   const nonce = generateNonce();
-  const [challengePda] = deriveChallengePda(user.publicKey, nonce, entrosVerifier.programId);
-  const [verificationPda] = deriveVerificationPda(user.publicKey, nonce, entrosVerifier.programId);
+  const [challengePda] = deriveChallengePda(
+    user.publicKey,
+    nonce,
+    entrosVerifier.programId,
+  );
+  const [verificationPda] = deriveVerificationPda(
+    user.publicKey,
+    nonce,
+    entrosVerifier.programId,
+  );
 
   await entrosVerifier.methods
     .createChallenge(nonce)

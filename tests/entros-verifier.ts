@@ -16,14 +16,14 @@ describe("entros-verifier", () => {
   anchor.setProvider(provider);
 
   const program = anchor.workspace.entrosVerifier as Program<EntrosVerifier>;
-  const iamVerifierProgId = program.programId;
+  const entrosVerifierProgId = program.programId;
 
   it("creates a challenge", async () => {
     const nonce = generateNonce();
     const [challengePda] = deriveChallengePda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
 
     await program.methods
@@ -50,12 +50,12 @@ describe("entros-verifier", () => {
     const [challengePda] = deriveChallengePda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
     const [verificationPda] = deriveVerificationPda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
 
     await program.methods
@@ -96,12 +96,12 @@ describe("entros-verifier", () => {
     const [challengePda] = deriveChallengePda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
     const [verificationPda] = deriveVerificationPda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
 
     await program.methods
@@ -143,12 +143,12 @@ describe("entros-verifier", () => {
     const [challengePda] = deriveChallengePda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
     const [verificationPda] = deriveVerificationPda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
 
     await program.methods
@@ -195,12 +195,12 @@ describe("entros-verifier", () => {
     const [challengePda] = deriveChallengePda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
     const [verificationPda] = deriveVerificationPda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
 
     await program.methods
@@ -223,7 +223,8 @@ describe("entros-verifier", () => {
       })
       .rpc();
 
-    const result = await program.account.verificationResult.fetch(verificationPda);
+    const result =
+      await program.account.verificationResult.fetch(verificationPda);
     // Fixture has threshold=30, min_distance=3 per its description.
     expect((result as any).threshold).to.equal(30);
     expect((result as any).minDistance).to.equal(3);
@@ -240,12 +241,12 @@ describe("entros-verifier", () => {
     const [challengePda] = deriveChallengePda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
     const [verificationPda] = deriveVerificationPda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
 
     await program.methods
@@ -289,12 +290,12 @@ describe("entros-verifier", () => {
     const [challengePda] = deriveChallengePda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
     const [verificationPda] = deriveVerificationPda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
 
     await program.methods
@@ -323,7 +324,9 @@ describe("entros-verifier", () => {
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .rpc();
-      expect.fail("Should have rejected — InvalidPublicInputs (zero commitment_new)");
+      expect.fail(
+        "Should have rejected — InvalidPublicInputs (zero commitment_new)",
+      );
     } catch (err: any) {
       expect(err).to.exist;
       expect(String(err)).to.match(/InvalidPublicInputs|6004/);
@@ -335,12 +338,12 @@ describe("entros-verifier", () => {
     const [challengePda] = deriveChallengePda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
     const [_verificationPda] = deriveVerificationPda(
       provider.wallet.publicKey,
       nonce,
-      iamVerifierProgId,
+      entrosVerifierProgId,
     );
 
     try {

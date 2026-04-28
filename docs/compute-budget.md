@@ -8,6 +8,8 @@ Measured via `sol_log_compute_units()` on localnet with `anchor test`. Default l
 |-------------|-------------|----------|-------|
 | mint_anchor | 46,539 - 58,539 | ~142K - 154K | Range from Token-2022 account creation variance |
 | update_anchor | 6,778 | ~193K | Includes trust score computation + timestamp update |
+| authorize_new_wallet | 15,485 | 185K | Included operations: add new signer in IdentityPDA, approve token delegate |
+| migrate_identity | 73,669 - 87,169 | 113K - 126K | Included operations: create new mint, setup token2022 extensions, initialize mint, create associated token account, mint 1 token, copy from old identity PDA, burn previous token, close old mint account, close old Identity PDA |
 
 ## entros-registry
 
@@ -17,9 +19,9 @@ Measured via `sol_log_compute_units()` on localnet with `anchor test`. Default l
 | register_validator | 14,466 - 18,966 | ~181K - 186K | Includes SOL stake transfer |
 | compute_trust_score | 3,449 - 5,928 | ~194K - 197K | Pure computation, no state mutation |
 | unstake_validator | 8,873 | ~191K | Returns staked SOL |
-| update_protocol_config | ~5,000 (est.) | ~195K | Simple field update, may realloc |
-| withdraw_treasury | ~5,000 (est.) | ~195K | SOL transfer from treasury |
-| migrate_admin | ~3,000 (est.) | ~197K | Single field change |
+| update_protocol_config | 4508 | 195K | Simple field update, may realloc |
+| withdraw_treasury | 7526 | 192K | SOL transfer from treasury |
+| migrate_admin | 11140 | 189K | Simple field update + ProtocolConfig realloc + raw-byte admin write |
 
 ## entros-verifier
 
@@ -27,8 +29,8 @@ Measured via `sol_log_compute_units()` on localnet with `anchor test`. Default l
 |-------------|-------------|----------|-------|
 | create_challenge | 7,523 - 13,523 | ~187K - 193K | Nonce validation + PDA creation |
 | verify_proof | 109,097 - 113,603 | ~87K - 91K | Groth16 verification (heaviest instruction) |
-| close_challenge | ~2,000 (est.) | ~198K | Rent recovery, minimal logic |
-| close_verification_result | ~2,000 (est.) | ~198K | Rent recovery, minimal logic |
+| close_challenge | 1767 | 198K | Rent recovery, minimal logic |
+| close_verification_result | 1866 | 198K | Rent recovery, minimal logic |
 
 ## Batched Transaction Budget
 

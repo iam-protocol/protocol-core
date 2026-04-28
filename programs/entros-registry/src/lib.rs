@@ -116,14 +116,14 @@ pub mod entros_registry {
         let programdata_info = &ctx.accounts.programdata;
         let programdata_data = programdata_info.try_borrow_data()?;
         // Programdata layout: 4 bytes (state enum) + 8 bytes (slot) + 1 byte (option tag) + 32 bytes (authority)
-        require!(programdata_data.len() >= 45, RegistryError::Unauthorized);
-        require!(programdata_data[12] == 1, RegistryError::Unauthorized); // option tag: Some
+        require!(programdata_data.len() >= 45, RegistryError::ProgramDataBytes);
+        require!(programdata_data[12] == 1, RegistryError::ProgramDataBytes); // option tag: Some
         let authority_bytes = &programdata_data[13..45];
         let upgrade_authority = Pubkey::try_from(authority_bytes)
-            .map_err(|_| error!(RegistryError::Unauthorized))?;
+            .map_err(|_| error!(RegistryError::ProgramDataBytes))?;
         require!(
             upgrade_authority == ctx.accounts.new_admin.key(),
-            RegistryError::Unauthorized
+            RegistryError::WrongUpgradeAuthority
         );
         drop(programdata_data);
 
@@ -131,9 +131,9 @@ pub mod entros_registry {
         let config_info = &ctx.accounts.protocol_config;
         let old_admin = {
             let data = config_info.try_borrow_data()?;
-            require!(data.len() >= 40, RegistryError::Unauthorized);
+            require!(data.len() >= 40, RegistryError::InvalidProtocolConfig);
             Pubkey::try_from(&data[8..40])
-                .map_err(|_| error!(RegistryError::Unauthorized))?
+                .map_err(|_| error!(RegistryError::InvalidProtocolConfig))?
         };
 
         // Realloc the account to the new size (zeros new bytes automatically)
@@ -432,7 +432,7 @@ pub struct MigrateAdmin<'info> {
                 &anchor_lang::solana_program::bpf_loader_upgradeable::id()
             );
             programdata.key() == expected_programdata
-        } @ RegistryError::Unauthorized
+        } @ RegistryError::ProgramDataBytes
     )]
     pub programdata: UncheckedAccount<'info>,
 

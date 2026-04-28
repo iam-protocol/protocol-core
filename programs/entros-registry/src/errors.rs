@@ -14,4 +14,10 @@ pub enum RegistryError {
     ArithmeticOverflow,
     #[msg("Insufficient treasury balance for withdrawal")]
     InsufficientTreasuryBalance,
+    #[msg("ProgramData bytes malformed")]
+    ProgramDataBytes,
+    #[msg("Caller is not the program upgrade authority")]
+    WrongUpgradeAuthority,
+    #[msg("Protocol config bytes malformed")]
+    InvalidProtocolConfig,
 }

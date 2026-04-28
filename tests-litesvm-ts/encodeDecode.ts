@@ -48,6 +48,11 @@ export const verifierAddr = new PublicKey(
   "4F97jNoxQzT2qRbkWpW3ztC3Nz2TtKj3rnKG8ExgnrfV",
 );
 console.log("verifierAddr:", verifierAddr.toBase58());
+export const SYSTEM_PROGRAM = new PublicKey("11111111111111111111111111111111");
+export const BPFLoaderUpgradeab1e = new PublicKey(
+  "BPFLoaderUpgradeab1e11111111111111111111111",
+);
+console.log("BPFLoaderUpgradeab1e:", BPFLoaderUpgradeab1e.toBase58());
 
 export const MIN_STAKE = BigInt(1_000_000_000);
 console.log("MIN_STAKE:", MIN_STAKE); // 1 SOL
@@ -55,6 +60,7 @@ export const CHALLENGE_EXPIRY = BigInt(300); //i64,
 export const MAX_TRUST_SCORE = 10000; //u16,
 export const BASE_TRUST_INCREMENT = 100; //u16,
 export const VERIFICATION_FEE = BigInt(0);
+export const MIGRATION_FEE = BigInt(0);
 
 //-----------== entrosRegistry
 export const [treasuryPda] = PublicKey.findProgramAddressSync(
@@ -86,11 +92,17 @@ export const deriveValidatorState = (validator: PublicKey) =>
     [Buffer.from("validator"), validator.toBuffer()],
     registryAddr,
   );
-
 export const [vaultPda] = PublicKey.findProgramAddressSync(
   [Buffer.from("vault")],
   registryAddr,
 );
+//According to Registry::MigrateAdmin
+export const [programdataAddr, programdataBump] =
+  PublicKey.findProgramAddressSync(
+    [registryAddr.toBuffer()],
+    BPFLoaderUpgradeab1e,
+  );
+
 //-------------==
 export type Pdas = {
   identityPda: PublicKey;

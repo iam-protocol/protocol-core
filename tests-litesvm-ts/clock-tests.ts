@@ -214,8 +214,10 @@ test("entrosAnchor.migrateIdentity() by user1", async () => {
     ", verification_count:",
     identity.verification_count,
   );
-  expect(balcSol(pdasAdmin.identityPda)).eq(null);
+  console.log("migrateAuthority 7");
   acctIsNull(pdasAdmin.identityPda);
+  expect(balcSol(pdasAdmin.identityPda)).eq(zero);
+  console.log("migrateAuthority 8");
   balcAtaCk(pdasAdmin.ata, zero, "Mint_Old", 0);
   acctIsNull(pdasAdmin.mintPda);
 });

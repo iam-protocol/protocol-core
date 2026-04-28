@@ -11,7 +11,7 @@ TARGET_SOL="${1:-6}"
 AMOUNT_PER_REQUEST=2
 MIN_DELAY=15
 MAX_DELAY=120
-LOG_FILE="/tmp/iam-devnet-airdrop.log"
+LOG_FILE="/tmp/entros-devnet-airdrop.log"
 
 solana config set --url devnet --keypair ~/.config/solana/id.json > /dev/null 2>&1
 PUBKEY=$(solana address)
