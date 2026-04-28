@@ -270,20 +270,20 @@ export const withdrawTreasury = (
 };
 
 //-------------==
-export interface RawProgDataPda {
+export interface RawProgDataAcct {
   state_enum: number; // 4 bytes
   slot: bigint; // 8 bytes
   option_tag: number; //1 | 0;
   upgrade_authority: PublicKey;
 }
-export const ProgDataLayout = struct<RawProgDataPda>([
+export const ProgDataLayout = struct<RawProgDataAcct>([
   u32("state_enum"),
   u64("slot"),
   u8("option_tag"),
   publicKey("upgrade_authority"),
 ]);
 export const PROGDATA_SIZE = ProgDataLayout.span;
-// programdataPda layout: 4 bytes (state enum) + 8 bytes (slot) + 1 byte (option tag) + 32 bytes (upgrade_authority)
+// programdata layout: 4 bytes (state enum) + 8 bytes (slot) + 1 byte (option tag) + 32 bytes (upgrade_authority)
 // len() < 45, data[12] == 1,
 export const setProgramDataAcct = (
   progDataAddr: PublicKey,
@@ -293,7 +293,7 @@ export const setProgramDataAcct = (
   // see @solana/spl-token/src/state/mint.ts
   console.log("PROGDATA_SIZE:", PROGDATA_SIZE);
   if (PROGDATA_SIZE < 45) throw new Error("PROGDATA_SIZE should be >= 45");
-  const RawProgDataPdaData = Buffer.alloc(PROGDATA_SIZE);
+  const RawProgDataData = Buffer.alloc(PROGDATA_SIZE);
   ProgDataLayout.encode(
     {
       state_enum: 0, // 4 bytes
@@ -301,11 +301,11 @@ export const setProgramDataAcct = (
       option_tag: 1, // fixed value; 1 byte
       upgrade_authority: upgrade_authority,
     },
-    RawProgDataPdaData,
+    RawProgDataData,
   );
   svm.setAccount(progDataAddr, {
     lamports: 1_000_000_000,
-    data: RawProgDataPdaData,
+    data: RawProgDataData,
     owner: acctOwner,
     executable: false,
   });
@@ -313,7 +313,7 @@ export const setProgramDataAcct = (
 export const migrateAdmin = (
   new_adminKp: Keypair,
   protocol_config: PublicKey,
-  programdataPda: PublicKey,
+  programdataAddr: PublicKey,
   expectedErr = "",
 ) => {
   const disc = [119, 155, 172, 213, 161, 86, 231, 120]; //copied from Anchor IDL
@@ -329,7 +329,7 @@ export const migrateAdmin = (
         isWritable: true,
       },
       { pubkey: protocol_config, isSigner: false, isWritable: true },
-      { pubkey: programdataPda, isSigner: false, isWritable: true },
+      { pubkey: programdataAddr, isSigner: false, isWritable: true },
       { pubkey: SYSTEM_PROGRAM, isSigner: false, isWritable: false },
     ],
     programId: progAddr,
