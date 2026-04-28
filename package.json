@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "test": "anchor test",
+    "cleanup-pdas": "npx --yes tsx scripts/cleanup-pdas.ts",
     "litesvm-initial": "node ./tests-litesvm-ts/trustscore.ts",
     "litesvm-trustscore": "node ./tests-litesvm-ts/clock-tests.ts"
   },
