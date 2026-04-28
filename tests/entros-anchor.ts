@@ -24,16 +24,17 @@ describe("entros-anchor", () => {
 
   const program = anchor.workspace.entrosAnchor as Program<EntrosAnchor>;
   const registry = anchor.workspace.entrosRegistry as Program<EntrosRegistry>;
-  const iamAnchorProgId = program.programId;
+  const entrosAnchorProgId = program.programId;
 
-  const entrosVerifier = anchor.workspace.entrosVerifier as Program<EntrosVerifier>;
-  const iamVerifierProgId = entrosVerifier.programId;
+  const entrosVerifier = anchor.workspace
+    .entrosVerifier as Program<EntrosVerifier>;
+  const entrosVerifierProgId = entrosVerifier.programId;
   let trustScore1vrf: number;
-  let trustScore2vrf: number;
+  let _trustScore2vrf: number;
 
   const [mintAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from("mint_authority")],
-    iamAnchorProgId,
+    entrosAnchorProgId,
   );
 
   const [protocolConfigPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -74,8 +75,8 @@ describe("entros-anchor", () => {
 
   it("mints an identity anchor", async () => {
     const user = provider.wallet;
-    const [identityPda] = deriveIdentityPda(user.publicKey, iamAnchorProgId);
-    const [mintPda] = deriveMintPda(user.publicKey, iamAnchorProgId);
+    const [identityPda] = deriveIdentityPda(user.publicKey, entrosAnchorProgId);
+    const [mintPda] = deriveMintPda(user.publicKey, entrosAnchorProgId);
     const ata = getAssociatedTokenAddressSync(
       mintPda,
       user.publicKey,
@@ -119,8 +120,8 @@ describe("entros-anchor", () => {
 
   it("fails to mint duplicate identity", async () => {
     const user = provider.wallet;
-    const [identityPda] = deriveIdentityPda(user.publicKey, iamAnchorProgId);
-    const [mintPda] = deriveMintPda(user.publicKey, iamAnchorProgId);
+    const [identityPda] = deriveIdentityPda(user.publicKey, entrosAnchorProgId);
+    const [mintPda] = deriveMintPda(user.publicKey, entrosAnchorProgId);
     const ata = getAssociatedTokenAddressSync(
       mintPda,
       user.publicKey,
@@ -158,8 +159,11 @@ describe("entros-anchor", () => {
     );
     await provider.connection.confirmTransaction(sig);
 
-    const [identityPda] = deriveIdentityPda(user2.publicKey, iamAnchorProgId);
-    const [mintPda] = deriveMintPda(user2.publicKey, iamAnchorProgId);
+    const [identityPda] = deriveIdentityPda(
+      user2.publicKey,
+      entrosAnchorProgId,
+    );
+    const [mintPda] = deriveMintPda(user2.publicKey, entrosAnchorProgId);
     const ata = getAssociatedTokenAddressSync(
       mintPda,
       user2.publicKey,
@@ -218,10 +222,14 @@ describe("entros-anchor", () => {
       .signers([user])
       .rpc();
 
-    const identity = await program.account.identityState.fetch(boot.identityPda);
+    const identity = await program.account.identityState.fetch(
+      boot.identityPda,
+    );
     expect(identity.verificationCount).to.equal(1);
     expect(identity.trustScore).to.be.greaterThanOrEqual(100);
-    expect(Buffer.from(identity.currentCommitment)).to.deep.equal(newCommitment);
+    expect(Buffer.from(identity.currentCommitment)).to.deep.equal(
+      newCommitment,
+    );
     trustScore1vrf = identity.trustScore;
   });
 
@@ -295,7 +303,10 @@ describe("entros-anchor", () => {
       const treasuryBefore = await provider.connection.getBalance(treasuryPda);
 
       await program.methods
-        .updateAnchor(Array.from(Buffer.from(fixture.public_inputs[0])), boot.nonce)
+        .updateAnchor(
+          Array.from(Buffer.from(fixture.public_inputs[0])),
+          boot.nonce,
+        )
         .accountsStrict({
           authority: user.publicKey,
           identityState: boot.identityPda,
@@ -370,7 +381,9 @@ describe("entros-anchor", () => {
         })
         .signers([user])
         .rpc();
-      expect.fail("Should have thrown — VR already consumed (prev commitment mismatch)");
+      expect.fail(
+        "Should have thrown — VR already consumed (prev commitment mismatch)",
+      );
     } catch (err: any) {
       expect(err).to.exist;
       // PrevCommitmentMismatch is the expected error
@@ -434,9 +447,17 @@ describe("entros-anchor", () => {
     // User B mints independently
     const userB = anchor.web3.Keypair.generate();
     await airdrop(provider.connection, userB.publicKey, 3_000_000_000);
-    const [identityPdaB] = deriveIdentityPda(userB.publicKey, iamAnchorProgId);
-    const [mintPdaB] = deriveMintPda(userB.publicKey, iamAnchorProgId);
-    const ataB = getAssociatedTokenAddressSync(mintPdaB, userB.publicKey, false, TOKEN_2022_PROGRAM_ID);
+    const [identityPdaB] = deriveIdentityPda(
+      userB.publicKey,
+      entrosAnchorProgId,
+    );
+    const [mintPdaB] = deriveMintPda(userB.publicKey, entrosAnchorProgId);
+    const ataB = getAssociatedTokenAddressSync(
+      mintPdaB,
+      userB.publicKey,
+      false,
+      TOKEN_2022_PROGRAM_ID,
+    );
     await program.methods
       .mintAnchor(Array.from(Buffer.from(fixture.public_inputs[1])))
       .accountsStrict({
@@ -459,7 +480,10 @@ describe("entros-anchor", () => {
     // B's seeds derivation, causing Anchor to reject with ConstraintSeeds.
     try {
       await program.methods
-        .updateAnchor(Array.from(Buffer.from(fixture.public_inputs[0])), bootA.nonce)
+        .updateAnchor(
+          Array.from(Buffer.from(fixture.public_inputs[0])),
+          bootA.nonce,
+        )
         .accountsStrict({
           authority: userB.publicKey,
           identityState: identityPdaB,
@@ -478,7 +502,7 @@ describe("entros-anchor", () => {
 
   it("rejects transfer of non-transferable token", async () => {
     const user = provider.wallet;
-    const [mintPda] = deriveMintPda(user.publicKey, iamAnchorProgId);
+    const [mintPda] = deriveMintPda(user.publicKey, entrosAnchorProgId);
     const sourceAta = getAssociatedTokenAddressSync(
       mintPda,
       user.publicKey,

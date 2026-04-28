@@ -21,7 +21,7 @@ Measured via `sol_log_compute_units()` on localnet with `anchor test`. Default l
 | unstake_validator | 8,873 | ~191K | Returns staked SOL |
 | update_protocol_config | 4508 | 195K | Simple field update, may realloc |
 | withdraw_treasury | 7526 | 192K | SOL transfer from treasury |
-| migrate_admin | 11140 | 189K | Simple field update |
+| migrate_admin | 11140 | 189K | Simple field update + ProtocolConfig realloc + raw-byte admin write |
 
 ## entros-verifier
 

@@ -29,6 +29,7 @@ import {
 import {
   acctEqual,
   acctIsNull,
+  admin2Kp,
   adminKp,
   balcAtaCk,
   balcSolCk,
@@ -37,6 +38,7 @@ import {
   closeVerificationResult,
   createChallenge,
   expireBlockhash,
+  hackerKp,
   initializeProtocol,
   migrateAdmin,
   mintAnchor,
@@ -48,6 +50,7 @@ import {
   setProgramDataAcct,
   updateAnchor,
   updateProtocolConfig,
+  user1,
   user1Kp,
   verifyProof,
   withdrawTreasury,
@@ -447,9 +450,24 @@ test("registry.withdrawTreasury()", async () => {
   withdrawTreasury(signerKp, amount, protocolConfigPda, treasuryPda);
 });
 
+test("registry.migrateAdmin() should fail by Wrong Upgrade Authority", async () => {
+  console.log(
+    "\n----------------== registry.migrateAdmin() should fail by Wrong Upgrade Authority",
+  );
+  const upgrade_authority = user1;
+  setProgramDataAcct(programdataAddr, upgrade_authority, upgrade_authority);
+
+  migrateAdmin(
+    hackerKp, // a hacker tries to invoke this
+    protocolConfigPda,
+    programdataAddr,
+    "Error Code: WrongUpgradeAuthority. Error Number: 6007. Error Message: WrongUpgradeAuthority",
+  );
+});
+
 test("registry.migrateAdmin()", async () => {
   console.log("\n----------------== registry.migrateAdmin()");
-  const upgrade_authorityKp = user1Kp;
+  const upgrade_authorityKp = admin2Kp;
   const upgrade_authority = upgrade_authorityKp.publicKey;
 
   setProgramDataAcct(programdataAddr, upgrade_authority, upgrade_authority);

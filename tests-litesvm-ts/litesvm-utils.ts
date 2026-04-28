@@ -31,11 +31,15 @@ export let svm = new LiteSVM();
 export const zero = BigInt(0);
 export const ownerKp = new Keypair();
 export const adminKp = new Keypair();
+export const admin2Kp = new Keypair();
 export const user1Kp = new Keypair();
+export const hackerKp = new Keypair();
 
 export const owner = ownerKp.publicKey;
 export const admin = adminKp.publicKey;
+export const admin2 = admin2Kp.publicKey;
 export const user1 = user1Kp.publicKey;
+export const hacker = hackerKp.publicKey;
 
 export const baseSOL = BigInt(LAMPORTS_PER_SOL);
 export const initSolBalc = baseSOL * BigInt(10);
@@ -43,7 +47,9 @@ console.log("initialize accounts by airdropping SOLs");
 
 svm.airdrop(owner, initSolBalc);
 svm.airdrop(admin, initSolBalc);
+svm.airdrop(admin2, initSolBalc);
 svm.airdrop(user1, initSolBalc);
+svm.airdrop(hacker, initSolBalc);
 
 export const pdasAdmin = getPdas(admin);
 export const pdasUser1 = getPdas(user1);
