@@ -99,6 +99,25 @@ const ED25519_PROGRAM_ID: Pubkey = Pubkey::new_from_array([
     244, 138, 100, 252, 202, 112, 68, 128, 0, 0, 0,
 ]);
 
+/// Field offsets in the Ed25519Program::verify instruction header
+/// (16 bytes total). See the Solana docs for the precompile layout —
+/// these constants pin the parser to the format we expect and make
+/// audit re-reads cheap.
+const ED25519_HEADER_LEN: usize = 16;
+const ED25519_NUM_SIG_OFFSET: usize = 0;
+const ED25519_SIG_IX_INDEX_OFFSET: usize = 4;
+const ED25519_PUBKEY_OFFSET_OFFSET: usize = 6;
+const ED25519_PUBKEY_IX_INDEX_OFFSET: usize = 8;
+const ED25519_MSG_OFFSET_OFFSET: usize = 10;
+const ED25519_MSG_SIZE_OFFSET: usize = 12;
+const ED25519_MSG_IX_INDEX_OFFSET: usize = 14;
+/// Sentinel for the *_instruction_index fields meaning "this instruction".
+/// Any other value is a cross-instruction reference, which would let the
+/// signed pubkey or message data live in a different ix while we naively
+/// parse it from this ix's data — closing that door is what defends
+/// against substitution attacks under Phase 5 enforcement.
+const ED25519_IX_INDEX_CURRENT: u16 = 0xFFFF;
+
 /// Integer square root via Newton's method (deterministic, no floating point).
 /// Mirrors entros_registry::isqrt — keep implementations in sync.
 fn isqrt(n: u64) -> u64 {
@@ -160,30 +179,67 @@ fn verify_mint_receipt(
         return Ok(());
     }
 
-    // Ed25519Program::verify instruction layout:
-    //   byte 0:    num_signatures (we expect 1)
-    //   byte 1:    padding
-    //   bytes 2-3: signature_offset (u16 LE)
-    //   bytes 4-5: signature_instruction_index (u16 LE)
-    //   bytes 6-7: public_key_offset (u16 LE)
-    //   bytes 8-9: public_key_instruction_index (u16 LE)
-    //   bytes 10-11: message_data_offset (u16 LE)
-    //   bytes 12-13: message_data_size (u16 LE)
-    //   bytes 14-15: message_instruction_index (u16 LE)
-    //   then: pubkey (32) || signature (64) || message bytes
+    // Ed25519Program::verify instruction layout — see ED25519_*_OFFSET
+    // constants above. Header is 16 bytes; pubkey/signature/message
+    // payloads follow at the offsets the header declares.
     let data = &prev.data;
-    if data.len() < 16 {
+    if data.len() < ED25519_HEADER_LEN {
         msg!("RECEIPT: malformed Ed25519 ix header (length {})", data.len());
         return Ok(());
     }
-    if data[0] != 1 {
-        msg!("RECEIPT: expected single-signature ix, got {}", data[0]);
+    if data[ED25519_NUM_SIG_OFFSET] != 1 {
+        msg!(
+            "RECEIPT: expected single-signature ix, got {}",
+            data[ED25519_NUM_SIG_OFFSET]
+        );
         return Ok(());
     }
 
-    let pubkey_offset = u16::from_le_bytes([data[6], data[7]]) as usize;
-    let message_offset = u16::from_le_bytes([data[10], data[11]]) as usize;
-    let message_size = u16::from_le_bytes([data[12], data[13]]) as usize;
+    // Reject cross-instruction references. Solana's Ed25519Program supports
+    // *_instruction_index fields that point at OTHER instructions' data;
+    // an attacker could verify a legitimately-signed payload in one ix and
+    // make this ix's offsets point at a *different* pubkey/message that
+    // we'd naively parse here — bypassing the binding while passing the
+    // signature check. Pinning all three to 0xFFFF (current ix) closes
+    // that substitution attack. Tx-builder produces 0xFFFF for inline
+    // receipts so legitimate clients are unaffected.
+    let sig_ix_index = u16::from_le_bytes([
+        data[ED25519_SIG_IX_INDEX_OFFSET],
+        data[ED25519_SIG_IX_INDEX_OFFSET + 1],
+    ]);
+    let pk_ix_index = u16::from_le_bytes([
+        data[ED25519_PUBKEY_IX_INDEX_OFFSET],
+        data[ED25519_PUBKEY_IX_INDEX_OFFSET + 1],
+    ]);
+    let msg_ix_index = u16::from_le_bytes([
+        data[ED25519_MSG_IX_INDEX_OFFSET],
+        data[ED25519_MSG_IX_INDEX_OFFSET + 1],
+    ]);
+    if sig_ix_index != ED25519_IX_INDEX_CURRENT
+        || pk_ix_index != ED25519_IX_INDEX_CURRENT
+        || msg_ix_index != ED25519_IX_INDEX_CURRENT
+    {
+        msg!(
+            "RECEIPT: Ed25519 ix uses cross-ix references (sig {}, pk {}, msg {}); rejecting",
+            sig_ix_index,
+            pk_ix_index,
+            msg_ix_index
+        );
+        return Ok(());
+    }
+
+    let pubkey_offset = u16::from_le_bytes([
+        data[ED25519_PUBKEY_OFFSET_OFFSET],
+        data[ED25519_PUBKEY_OFFSET_OFFSET + 1],
+    ]) as usize;
+    let message_offset = u16::from_le_bytes([
+        data[ED25519_MSG_OFFSET_OFFSET],
+        data[ED25519_MSG_OFFSET_OFFSET + 1],
+    ]) as usize;
+    let message_size = u16::from_le_bytes([
+        data[ED25519_MSG_SIZE_OFFSET],
+        data[ED25519_MSG_SIZE_OFFSET + 1],
+    ]) as usize;
 
     if pubkey_offset + 32 > data.len() || message_offset + message_size > data.len() {
         msg!("RECEIPT: Ed25519 ix offsets exceed data length");
