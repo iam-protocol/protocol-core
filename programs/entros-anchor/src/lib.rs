@@ -135,11 +135,12 @@ fn isqrt(n: u64) -> u64 {
 
 /// Verify the validator-signed mint receipt embedded as an
 /// `Ed25519Program::verify` instruction preceding the current `mint_anchor`
-/// call (master-list #146 Phase 3).
+/// call (master-list #146).
 ///
-/// Phase 3 is **log-only**: every failed check emits a `msg!` and returns
-/// `Ok(())` so the SDK has time to roll out the receipt-bundling code
-/// (Phase 4) before enforcement (Phase 5) flips to `return Err(...)`.
+/// Enforced: any failed check returns the corresponding Receipt* error.
+/// The single skip path — zero-pubkey on ProtocolConfig — exists only to
+/// keep the program operable during the admin's `set_validator_pubkey`
+/// migration window; on a configured deployment it is unreachable.
 ///
 /// The receipt message layout matches the validator's canonical form:
 ///   `wallet_pubkey (32) || commitment_new (32) || validated_at i64 LE (8) = 72 bytes`
@@ -161,7 +162,8 @@ fn verify_mint_receipt(
     };
 
     // Zero-pubkey indicates the protocol admin has not yet run
-    // `set_validator_pubkey` to migrate ProtocolConfig. Skip silently.
+    // `set_validator_pubkey` to migrate ProtocolConfig. Skip — this path
+    // is only reachable during the migration window before enforcement.
     if validator_pubkey == &[0u8; 32] {
         msg!("RECEIPT: validator_pubkey not configured; skipping (pre-migration)");
         return Ok(());
@@ -170,13 +172,13 @@ fn verify_mint_receipt(
     let current_index = load_current_index_checked(instructions_sysvar)? as usize;
     if current_index == 0 {
         msg!("RECEIPT: no preceding instruction (mint_anchor is first in tx)");
-        return Ok(());
+        return Err(EntrosAnchorError::MissingValidatorReceipt.into());
     }
 
     let prev = load_instruction_at_checked(current_index - 1, instructions_sysvar)?;
     if prev.program_id != ED25519_PROGRAM_ID {
         msg!("RECEIPT: preceding instruction is not Ed25519Program");
-        return Ok(());
+        return Err(EntrosAnchorError::MissingValidatorReceipt.into());
     }
 
     // Ed25519Program::verify instruction layout — see ED25519_*_OFFSET
@@ -185,14 +187,14 @@ fn verify_mint_receipt(
     let data = &prev.data;
     if data.len() < ED25519_HEADER_LEN {
         msg!("RECEIPT: malformed Ed25519 ix header (length {})", data.len());
-        return Ok(());
+        return Err(EntrosAnchorError::MalformedReceiptMessage.into());
     }
     if data[ED25519_NUM_SIG_OFFSET] != 1 {
         msg!(
             "RECEIPT: expected single-signature ix, got {}",
             data[ED25519_NUM_SIG_OFFSET]
         );
-        return Ok(());
+        return Err(EntrosAnchorError::MalformedReceiptMessage.into());
     }
 
     // Reject cross-instruction references. Solana's Ed25519Program supports
@@ -225,7 +227,7 @@ fn verify_mint_receipt(
             pk_ix_index,
             msg_ix_index
         );
-        return Ok(());
+        return Err(EntrosAnchorError::MalformedReceiptMessage.into());
     }
 
     let pubkey_offset = u16::from_le_bytes([
@@ -243,7 +245,7 @@ fn verify_mint_receipt(
 
     if pubkey_offset + 32 > data.len() || message_offset + message_size > data.len() {
         msg!("RECEIPT: Ed25519 ix offsets exceed data length");
-        return Ok(());
+        return Err(EntrosAnchorError::MalformedReceiptMessage.into());
     }
     if message_size != RECEIPT_MESSAGE_LEN {
         msg!(
@@ -251,13 +253,13 @@ fn verify_mint_receipt(
             message_size,
             RECEIPT_MESSAGE_LEN
         );
-        return Ok(());
+        return Err(EntrosAnchorError::MalformedReceiptMessage.into());
     }
 
     let signed_pubkey = &data[pubkey_offset..pubkey_offset + 32];
     if signed_pubkey != validator_pubkey {
         msg!("RECEIPT: signing pubkey does not match ProtocolConfig.validator_pubkey");
-        return Ok(());
+        return Err(EntrosAnchorError::ReceiptValidatorMismatch.into());
     }
 
     let message = &data[message_offset..message_offset + RECEIPT_MESSAGE_LEN];
@@ -270,22 +272,21 @@ fn verify_mint_receipt(
 
     if receipt_wallet != expected_wallet.as_ref() {
         msg!("RECEIPT: wallet mismatch");
-        return Ok(());
+        return Err(EntrosAnchorError::ReceiptWalletMismatch.into());
     }
     if receipt_commitment != expected_commitment {
         msg!("RECEIPT: commitment mismatch");
-        return Ok(());
+        return Err(EntrosAnchorError::ReceiptCommitmentMismatch.into());
     }
     if validated_at > now {
         msg!("RECEIPT: validated_at is in the future");
-        return Ok(());
+        return Err(EntrosAnchorError::ReceiptFromFuture.into());
     }
     if now - validated_at > MAX_RECEIPT_AGE_SECS {
         msg!("RECEIPT: aged past MAX_RECEIPT_AGE_SECS");
-        return Ok(());
+        return Err(EntrosAnchorError::ReceiptExpired.into());
     }
 
-    msg!("RECEIPT: valid binding for mint_anchor (Phase 3 log-only)");
     Ok(())
 }
 
