@@ -32,6 +32,7 @@ import {
   mintAnchor,
   pdasBySignerKp,
   readAcct,
+  readAnchorMintAcct,
 } from "./litesvm-utils.ts";
 
 /*
@@ -103,4 +104,6 @@ test("entrosAnchor.mintAnchor()", async () => {
   );
   acctEqual(identity.mint, pdas.mintPda);
   balcAtaCk(pdas.ata, BigInt(1), "IdentityMint", 0);
+  console.log("mintAuthority:", mintAuthorityPda.toBytes());
+  readAnchorMintAcct(pdas.mintPda);
 });

@@ -19,6 +19,7 @@ import {
 } from "litesvm";
 import {
   anchorAddr,
+  decodeMetaData,
   getPdas,
   INSTRUCTIONS_SYSVAR,
   loadProofFixture,
@@ -116,6 +117,34 @@ export const readAcct = (acct1: PublicKey, acctOwner?: PublicKey) => {
   console.log("pdaRaw?.owner:", pdaRaw?.owner.toBase58());
   if (acctOwner) acctEqual(pdaRaw?.owner, acctOwner);
   return rawAccountData;
+};
+
+export const readAnchorMintAcct = (
+  anchorMint: PublicKey,
+  _acctOwner?: PublicKey,
+) => {
+  const data = readAcct(anchorMint);
+  console.log("len:", data?.length);
+  const _mintAuthority = data?.slice(4, 36);
+  //const part1 = data?.slice(36, 86);
+  //const last50bytes = data?.slice(-50);
+  const metadataIndex = 342;
+  const index = metadataIndex;
+
+  const { value: tokenName, index: indexNew1 } = decodeMetaData(
+    data,
+    index,
+    "TokenName",
+    true,
+  );
+  const { value: symbol, index: indexNew2 } = decodeMetaData(
+    data,
+    indexNew1,
+    "URI",
+    true,
+  );
+  //strToU8Array("token_uri", true);
+  const { value: uri } = decodeMetaData(data, indexNew2, "URI", true);
 };
 export const balcSol = (
   target: PublicKey,
