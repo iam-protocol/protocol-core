@@ -124,11 +124,16 @@ export const readAnchorMintAcct = (
   _acctOwner?: PublicKey,
 ) => {
   const data = readAcct(anchorMint);
-  console.log("len:", data?.length);
+  console.log("AnchorMint account length:", data?.length);
+  const metadataIndex = 342;
+  //3x4 bytes for data length of name(min 2 bytes), symbol(min 3 bytes), uri length(min 3 bytes) + 4 bytes last padding;
+  const metadataLen = 415; // fixed length from fixed AnchorMint name, symbol, and uri
+  if (data && data?.length !== metadataLen) {
+    throw new Error("metadataLen invalid");
+  }
   const _mintAuthority = data?.slice(4, 36);
   //const part1 = data?.slice(36, 86);
   //const last50bytes = data?.slice(-50);
-  const metadataIndex = 342;
   const index = metadataIndex;
 
   const { value: tokenName, index: indexNew1 } = decodeMetaData(
@@ -826,7 +831,7 @@ export const checkLogs = (
       "find error here: https://docs.rs/solana-sdk/latest/solana_sdk/transaction/enum.TransactionError.html",
     );
     if (expectedError) {
-      const foundErrorMesg = sendRes.toString().includes(`${expectedError}`);
+      const foundErrorMesg = errStr.includes(`${expectedError}`);
       console.log("found error?:", foundErrorMesg);
       expect(foundErrorMesg).eq(true);
     } else {

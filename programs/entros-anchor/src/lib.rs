@@ -303,6 +303,9 @@ fn verify_mint_receipt(
 /// NonTransferable data = 0 bytes. Plus multisig padding from Token-2022.
 /// We use a constant derived from the Token-2022 spec.
 //const MINT_SIZE_WITH_NON_TRANSFERABLE: usize = 170;
+const MINT_NAME: &str = "Entros Anchor";
+const MINT_SYMBOL: &str = "ANCHOR";
+const MINT_URI: &str = "https://entros.io/anchor-metadata.json";
 
 #[program]
 pub mod entros_anchor {
@@ -321,13 +324,10 @@ pub mod entros_anchor {
         let mint_seeds: &[&[u8]] = &[b"mint", user_key.as_ref(), &[ctx.bumps.mint]];
         let mint_authority_seeds: &[&[u8]] = &[b"mint_authority", &[ctx.bumps.mint_authority]];
 
-        let name = "Entros Protocol";
-        let symbol = "ETP";
-        let uri = "https://entros.io/anchormint.jpeg";
         let token_metadata = TokenMetadata {
-            name: name.to_string(),
-            symbol: symbol.to_string(),
-            uri: uri.to_string(),
+            name: MINT_NAME.to_string(),
+            symbol: MINT_SYMBOL.to_string(),
+            uri: MINT_URI.to_string(),
             ..Default::default()
         };
         let meta_data_space = token_metadata.tlv_size_of()?;
@@ -337,7 +337,7 @@ pub mod entros_anchor {
             ExtensionType::MintCloseAuthority,
             ExtensionType::MetadataPointer,
         ];
-        // 2. Calculate Space
+        // 0. Calculate Space
         let space =
             ExtensionType::try_calculate_account_len::<spl_token_2022::state::Mint>(&extensions)?;
 
@@ -416,9 +416,9 @@ pub mod entros_anchor {
                 },
                 &[mint_authority_seeds],
             ),
-            name.to_string(),
-            symbol.to_string(),
-            uri.to_string(),
+            MINT_NAME.to_string(),
+            MINT_SYMBOL.to_string(),
+            MINT_URI.to_string(),
         )?;
 
         // 4. Create the user's Associated Token Account
@@ -561,20 +561,29 @@ pub mod entros_anchor {
         let mint_seeds: &[&[u8]] = &[b"mint", user_key.as_ref(), &[ctx.bumps.mint]];
         let mint_authority_seeds: &[&[u8]] = &[b"mint_authority", &[ctx.bumps.mint_authority]];
 
+        let token_metadata = TokenMetadata {
+            name: MINT_NAME.to_string(),
+            symbol: MINT_SYMBOL.to_string(),
+            uri: MINT_URI.to_string(),
+            ..Default::default()
+        };
+        let meta_data_space = token_metadata.tlv_size_of()?;
+
         let extensions = [
             ExtensionType::NonTransferable,
             ExtensionType::MintCloseAuthority,
+            ExtensionType::MetadataPointer,
         ];
-        // 2. Calculate Space
+        // 0. Calculate Space
         let space =
             ExtensionType::try_calculate_account_len::<spl_token_2022::state::Mint>(&extensions)?;
 
         // 1. Allocate mint account with space for NonTransferable extension
         let rent = Rent::get()?;
-        let lamports = rent.minimum_balance(space);
+        let lamports = rent.minimum_balance(space + meta_data_space);
 
         #[cfg(feature = "debug-logs")]
-        msg!("create_account");
+        msg!("create_account on mint");
         system_program::create_account(
             CpiContext::new_with_signer(
                 ctx.accounts.system_program.to_account_info(),
@@ -591,7 +600,7 @@ pub mod entros_anchor {
 
         // 2. Initialize NonTransferable extension (MUST be before InitializeMint2)
         #[cfg(feature = "debug-logs")]
-        msg!("initialize_non_transferable");
+        msg!("initialize_non_transferable_mint");
         let ix = spl_token_2022::instruction::initialize_non_transferable_mint(
             ctx.accounts.token_program.key,
             &ctx.accounts.mint.key(),
@@ -607,9 +616,19 @@ pub mod entros_anchor {
         )?;
         anchor_lang::solana_program::program::invoke(&ix, &[ctx.accounts.mint.to_account_info()])?;
 
+        #[cfg(feature = "debug-logs")]
+        msg!("initialize metadata_pointer");
+        let ix = spl_token_2022::extension::metadata_pointer::instruction::initialize(
+            ctx.accounts.token_program.key,
+            &ctx.accounts.mint.key(),
+            Some(ctx.accounts.mint_authority.key()),
+            Some(ctx.accounts.mint.key()),
+        )?;
+        anchor_lang::solana_program::program::invoke(&ix, &[ctx.accounts.mint.to_account_info()])?;
+
         // 3. Initialize the mint (decimals=0, authority=mint_authority PDA)
         #[cfg(feature = "debug-logs")]
-        msg!("initialize_mint");
+        msg!("initialize_mint2");
         let ix = spl_token_2022::instruction::initialize_mint2(
             ctx.accounts.token_program.key,
             &ctx.accounts.mint.key(),
@@ -619,7 +638,29 @@ pub mod entros_anchor {
         )?;
         anchor_lang::solana_program::program::invoke(&ix, &[ctx.accounts.mint.to_account_info()])?;
 
+        // initialize the metadata after  initializing the Mint account
+        #[cfg(feature = "debug-logs")]
+        msg!("token_metadata_initialize");
+        token_metadata_initialize(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TokenMetadataInitialize {
+                    mint: ctx.accounts.mint.to_account_info(),
+                    program_id: ctx.accounts.token_program.to_account_info(),
+                    mint_authority: ctx.accounts.mint_authority.to_account_info(),
+                    update_authority: ctx.accounts.mint_authority.to_account_info(),
+                    metadata: ctx.accounts.mint.to_account_info(),
+                },
+                &[mint_authority_seeds],
+            ),
+            MINT_NAME.to_string(),
+            MINT_SYMBOL.to_string(),
+            MINT_URI.to_string(),
+        )?;
+
         // 4. Create the user's Associated Token Account
+        #[cfg(feature = "debug-logs")]
+        msg!("create user ata");
         anchor_spl::associated_token::create(CpiContext::new(
             ctx.accounts.associated_token_program.to_account_info(),
             anchor_spl::associated_token::Create {
@@ -633,6 +674,8 @@ pub mod entros_anchor {
         ))?;
 
         // 5. Mint exactly 1 token to the user's ATA
+        #[cfg(feature = "debug-logs")]
+        msg!("mint 1 token");
         token_2022::mint_to(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -647,6 +690,8 @@ pub mod entros_anchor {
         )?;
 
         // 6. Migrate Identity
+        #[cfg(feature = "debug-logs")]
+        msg!("Migrate Identity");
         let identity = &mut ctx.accounts.identity_state;
         let identity_old = &ctx.accounts.identity_state_old;
         require!(
