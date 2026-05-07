@@ -19,11 +19,12 @@ import {
 } from "litesvm";
 import {
   anchorAddr,
+  decodeMetaData,
   getPdas,
+  INSTRUCTIONS_SYSVAR,
   loadProofFixture,
   numToBytes,
   registryAddr,
-  INSTRUCTIONS_SYSVAR,
   SYSTEM_PROGRAM,
   verifierAddr,
 } from "./encodeDecode.ts";
@@ -116,6 +117,47 @@ export const readAcct = (acct1: PublicKey, acctOwner?: PublicKey) => {
   console.log("pdaRaw?.owner:", pdaRaw?.owner.toBase58());
   if (acctOwner) acctEqual(pdaRaw?.owner, acctOwner);
   return rawAccountData;
+};
+
+export const readAnchorMintAcct = (
+  anchorMint: PublicKey,
+  _acctOwner?: PublicKey,
+) => {
+  const data = readAcct(anchorMint);
+  console.log("AnchorMint account length:", data?.length);
+  // Mint base 82 + padding to 166 (Token-2022 type discriminator)
+  // + NonTransferable (4) + MintCloseAuthority (4 + 32)
+  // + MetadataPointer (4 + 64) = 274 total extensions space, also verified by ExtensionType::try_calculate_account_len()
+
+  // + TokenMetadata TLV header (4 + 32 update_auth + 32 mint) = 342 (start of name)
+  const tokenNameStartIndex = 342;
+
+  // + AnchorMint name(4 + 13) + symbol(4 + 6) + uri(4 + 38) + additional_metadata_count(4) = 415 total
+  const metadataLen = 415;
+
+  if (data && data?.length !== metadataLen) {
+    throw new Error("metadataLen invalid");
+  }
+  const _mintAuthority = data?.slice(4, 36);
+  //const part1 = data?.slice(36, 86);
+  //const last50bytes = data?.slice(-50);
+  const index = tokenNameStartIndex;
+
+  const { value: tokenName, index: indexNew1 } = decodeMetaData(
+    data,
+    index,
+    "TokenName",
+    true,
+  );
+  const { value: tokenSymbol, index: indexNew2 } = decodeMetaData(
+    data,
+    indexNew1,
+    "Symbol",
+    true,
+  );
+  //strToU8Array("token_uri", true);
+  const { value: tokenURI } = decodeMetaData(data, indexNew2, "URI", true);
+  return { tokenName, tokenSymbol, tokenURI };
 };
 export const balcSol = (
   target: PublicKey,
@@ -797,7 +839,7 @@ export const checkLogs = (
       "find error here: https://docs.rs/solana-sdk/latest/solana_sdk/transaction/enum.TransactionError.html",
     );
     if (expectedError) {
-      const foundErrorMesg = sendRes.toString().includes(`${expectedError}`);
+      const foundErrorMesg = errStr.includes(`${expectedError}`);
       console.log("found error?:", foundErrorMesg);
       expect(foundErrorMesg).eq(true);
     } else {
