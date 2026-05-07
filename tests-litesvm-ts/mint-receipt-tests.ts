@@ -41,6 +41,7 @@ import {
   svm,
   user1Kp,
 } from "./litesvm-utils.ts";
+import { maxComputeBudgets } from "./cu-budgets.ts";
 
 // Pin svm clock so the validated_at timestamp baked into the receipt
 // matches the on-chain Clock::get() result inside mint_anchor.
@@ -119,7 +120,7 @@ test("mint_anchor without an Ed25519 receipt rejects with MissingValidatorReceip
     pdas.mintPda,
     pdas.ata,
   );
-  sendTxns(svm.latestBlockhash(), [ix], [user1Kp], anchorAddr, expectedErr);
+  sendTxns(svm.latestBlockhash(), [ix], [user1Kp], anchorAddr, maxComputeBudgets.failed_invocation, expectedErr);
 });
 
 test("mint_anchor with a valid Ed25519 receipt succeeds", async () => {
