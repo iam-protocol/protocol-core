@@ -11,23 +11,21 @@ const computeBudgetOutput = "docs/compute-budget.md";
 const content = fs.readFileSync(computeBudgetDocPath).toString(); //"utf-8"
 
 const isFound = (str: string, target: string) => {
-  return str.indexOf(target) > -1 ? "Found" : "NotFound";
+  return str.indexOf(target) > -1;
 };
 console.log("\nfnName, maxComputeUnit");
 let computeUnitHeadroom = 0;
 let newContent = content;
 for (const [fnName, maxComputeUnit] of Object.entries(maxComputeBudgets)) {
-  console.log(
-    fnName,
-    maxComputeUnit,
-    isFound(content, `@${fnName}`),
-    isFound(content, `@${fnName}H`),
-  );
-  newContent = newContent.replace(`@${fnName}`, toHumanInt(maxComputeUnit));
+  console.log(fnName, maxComputeUnit);
+  if (!isFound(content, `@${fnName}@`) || !isFound(content, `@${fnName}H@`))
+    throw new Error("fnName or fnNameHeadroom not found");
+
+  newContent = newContent.replace(`@${fnName}@`, toHumanInt(maxComputeUnit));
 
   computeUnitHeadroom = 200000 - maxComputeUnit;
   newContent = newContent.replace(
-    `@${fnName}H`,
+    `@${fnName}H@`,
     toHumanInt(computeUnitHeadroom),
   );
 }

@@ -134,7 +134,7 @@ test("mint_anchor without an Ed25519 receipt rejects with MissingValidatorReceip
     [ix],
     [user1Kp],
     anchorAddr,
-    maxComputeBudgets.failed_invocation,
+    maxComputeBudgets.mint_anchor,
     expectedErr,
   );
 });

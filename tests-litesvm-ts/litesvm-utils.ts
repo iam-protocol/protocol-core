@@ -927,7 +927,7 @@ export const checkLogs = (
       ", Headroom:",
       computeUnitsHeadroom,
     );
-    expect(Number(computeUnitsConsumed) <= maxComputeBudget);
+    expect(Number(computeUnitsConsumed)).to.be.at.most(maxComputeBudget);
   } else {
     console.log("txn failed");
     console.log("sendRes.err():", sendRes.err());
