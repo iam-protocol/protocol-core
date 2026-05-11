@@ -21,11 +21,13 @@ for (const [fnName, maxComputeUnit] of Object.entries(maxComputeBudgets)) {
   if (!isFound(content, `@${fnName}@`) || !isFound(content, `@${fnName}H@`))
     throw new Error("fnName or fnNameHeadroom not found");
 
-  newContent = newContent.replace(`@${fnName}@`, toHumanInt(maxComputeUnit));
-  newContent = newContent.replace(`@${fnName}@`, toHumanInt(maxComputeUnit));
+  newContent = newContent.replaceAll(
+    `@${fnName}@`,
+    toHumanInt(maxComputeUnit),
+  );
 
   headroom = 200000 - maxComputeUnit;
-  newContent = newContent.replace(`@${fnName}H@`, toHumanInt(headroom));
+  newContent = newContent.replaceAll(`@${fnName}H@`, toHumanInt(headroom));
 }
 
 // Re-verification compute budgets
@@ -35,11 +37,11 @@ let maxComputeUnit =
   maxComputeBudgets.update_anchor;
 headroom = 250000 - maxComputeUnit;
 
-newContent = newContent.replace(
+newContent = newContent.replaceAll(
   `@Re-verification@`,
   toHumanInt(maxComputeUnit),
 );
-newContent = newContent.replace(`@Re-verificationH@`, toHumanInt(headroom));
+newContent = newContent.replaceAll(`@Re-verificationH@`, toHumanInt(headroom));
 
 // FirstVerification compute budgets
 maxComputeUnit =
@@ -48,11 +50,14 @@ maxComputeUnit =
   maxComputeBudgets.mint_anchor;
 headroom = 250000 - maxComputeUnit;
 
-newContent = newContent.replace(
+newContent = newContent.replaceAll(
   `@First-verification@`,
   toHumanInt(maxComputeUnit),
 );
-newContent = newContent.replace(`@First-verificationH@`, toHumanInt(headroom));
+newContent = newContent.replaceAll(
+  `@First-verificationH@`,
+  toHumanInt(headroom),
+);
 
 fs.writeFileSync(computeBudgetOutput, newContent);
 
