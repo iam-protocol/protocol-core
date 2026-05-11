@@ -39,6 +39,7 @@ import {
   mintAnchor,
   pdasBySignerKp,
   readAcct,
+  readAnchorMintAcct,
   setTime,
   user1,
   user1Kp,
@@ -49,7 +50,7 @@ import {
 /*
 Build the Solana programs first:
 $ anchor build
-Then Install NodeJs v25.9.0(or above v22.18.0) to run this TypeScript Natively: node ./file_path/this_file.ts
+Then Install NodeJs v26.0.0(or above v22.18.0) to run this TypeScript Natively: node ./file_path/this_file.ts
 Or use Bun: bun test ./file_path/this_file.ts
 */
 
@@ -211,4 +212,5 @@ test("entrosAnchor.migrateIdentity() by user1", async () => {
   console.log("migrateAuthority 8");
   balcAtaCk(pdasAdmin.ata, zero, "Mint_Old", 0);
   acctIsNull(pdasAdmin.mintPda);
+  readAnchorMintAcct(pdas.mintPda);
 });

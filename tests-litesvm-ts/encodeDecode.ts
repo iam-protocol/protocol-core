@@ -374,3 +374,70 @@ export const numToBytes = (input: bigint | number, bit = 64) => {
   console.log("u8Bytes", u8Bytes);
   return u8Bytes;
 };
+export const bytesToNum = (
+  byteArray: Uint8Array<ArrayBuffer> | undefined,
+  verbose = false,
+) => {
+  if (byteArray === undefined || byteArray.length === 0)
+    throw new Error("invalid byteArray");
+  const len = byteArray.length;
+  let value = 0;
+  for (let i = len - 1; i >= 0; i--) {
+    value = value * 256 + byteArray[i];
+  }
+  if (verbose) console.log("bytesToNum:", value);
+  return value;
+};
+
+//ASCII: Each char uses exactly 1 byte(8 bits)
+export const strToU8Array = (str: string, verbose = false) => {
+  const u8array = Uint8Array.from(
+    Array.from(str).map((letter) => letter.charCodeAt(0)),
+  );
+  if (verbose) console.log(str, "to u8:", u8array);
+  return u8array;
+};
+export const bytesToStr = (
+  bytes: Uint8Array<ArrayBuffer> | undefined,
+  strName: string,
+  verbose = false,
+) => {
+  const string = new TextDecoder().decode(bytes);
+  if (verbose) {
+    console.log(bytes);
+    console.log(strName, ":", string);
+  }
+  return string;
+};
+export const u32BytesLen = 4;
+export const decodeMetaData = (
+  rawAccData: Uint8Array<ArrayBufferLike> | undefined,
+  index: number,
+  strName: string,
+  verbose = false,
+) => {
+  const valueIndex = index + u32BytesLen;
+  const valueLenBytes = rawAccData?.slice(index, valueIndex);
+  const valueLen = bytesToNum(valueLenBytes, verbose);
+  index = valueIndex + valueLen;
+  const valueBytes = rawAccData?.slice(valueIndex, index);
+  const value = bytesToStr(valueBytes, strName, verbose);
+  return { value, index };
+};
+
+// Convert integers to Human format
+export const toHumanInt = (num: number) => {
+  //if (!Number.isInteger(num)) throw new Error("input should be an integer");
+  if (num >= 1000000000) {
+    const billions = parseFloat((num / 1000000000).toFixed(2));
+    return `${billions}B`;
+  } else if (num >= 1000000) {
+    const millions = parseFloat((num / 1000000).toFixed(2));
+    return `${millions}M`;
+  } else if (num >= 1000) {
+    const thousands = parseFloat((num / 1000).toFixed(2));
+    return `${thousands}K`;
+  } else {
+    return num.toString();
+  }
+};
